@@ -1,9 +1,8 @@
 /* ==========
 * MACRO: Random Vampire Weakness
 * VERSION: 1.0.0
-* UPDATED: 2023-06-17
 * AUTHOR: Robak132
-* DESCRIPTION: Generate 5 random weakness for Vampires.
+* DESCRIPTION: Generate random weakness for Vampires.
 ========== */
 
 const WEAKNESS = [
