@@ -1,7 +1,6 @@
 /* ==========
 * MACRO: Random Weather Generator (Sea)
 * VERSION: 1.2
-* UPDATED: 2023-06-07
 * AUTHOR: Robak132
 * DESCRIPTION: Generate weather by Sea of Claws rules.
 ========== */

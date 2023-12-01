@@ -1,7 +1,6 @@
 /* ==========
-* MACRO: Pursuit Tool
+* MACRO: Auto-Pursuit
 * VERSION: 2.0
-* UPDATED: 2023-11-29
 * AUTHOR: Robak132
 * DESCRIPTION: Allows for creating pursuits (Core & UiA rules)
 ========== */
