@@ -1,7 +1,6 @@
 /* ==========
-* MACRO: Pursuit Tool
+* MACRO: Auto-Pursuit
 * VERSION: 2.0
-* UPDATED: 2023-11-29
 * AUTHOR: Robak132
 * DESCRIPTION: Allows for creating pursuits (Core & UiA rules)
 ========== */
@@ -21,9 +20,8 @@ function sortObjects(objects) {
 }
 
 class SimplePursuit {
-  constructor(characters) {
-    this.characters = characters
-    this.obstacles = []
+  constructor(objectsInPursuit) {
+    this.objectsInPursuit = objectsInPursuit
     this.maxDistance = 10
     this.turn = 0
     this.initialDialogHeader = ``
@@ -35,8 +33,7 @@ class SimplePursuit {
   }
 
   getChatTable() {
-    let maxPursuerDistance = this.characters.filter(a => !a.quarry).reduce((a, b) => a.distance > b.distance ? a : b).distance
-    let objects = sortObjects([...this.characters, ...this.obstacles])
+    let maxPursuerDistance = this.objectsInPursuit.filter(a => !a.quarry).reduce((a, b) => a.distance > b.distance ? a : b).distance
     let content = `<table>
       <tr>
         <td style="text-align:center"><b>Q</b></td>
@@ -44,7 +41,7 @@ class SimplePursuit {
         <td style="text-align:center"><b>Move</b></td>
         <td style="text-align:center"><b>Distance</b></td>
       </tr>`
-    objects.forEach(object => {
+    sortObjects(this.objectsInPursuit).forEach(object => {
       content += `<tr><td style="text-align:center"><i ${object.quarry ? "class='fas fa-check'>" : ""}</i></td>`
       if (object.actor) {
         content += `<td style="text-align:center">${object.actor.name}</td><td style="text-align:center">${object.actor.details.move.value}</td>`
@@ -55,27 +52,27 @@ class SimplePursuit {
     })
     content += `</table>`
 
-    this.characters.filter(a => a.quarry).forEach(character => {
+    this.objectsInPursuit.filter(a => a.quarry).forEach(character => {
       content += `<h4><b>${character.actor.name}</b> needs ${this.maxDistance - character.distance + maxPursuerDistance} Distance to escape.</b></h4>`
     })
     return content;
   }
 
-  getChatEncounters(lostCharacters) {
-    let encounters = ""
+  getChatEvents(lostCharacters) {
+    let events = ""
     lostCharacters.forEach(character => {
-      encounters += `<h4><b>${character.actor.name}</b> lost sight with rest of Pursuit.</h4>`
+      events += `<h4><b>${character.actor.name}</b> lost sight with rest of Pursuit.</h4>`
     })
-    this.characters.filter(a => a.quarry).forEach(quarryCharacter => {
-      this.characters.filter(a => !a.quarry).forEach(pursuer => {
+    this.objectsInPursuit.filter(a => a.quarry).forEach(quarryCharacter => {
+      this.objectsInPursuit.filter(a => !a.quarry).forEach(pursuer => {
         if (quarryCharacter.distance === pursuer.distance) {
-          encounters += `<h4><b>${pursuer.actor.name}</b> can catch <b>${quarryCharacter.actor.name}</b>.</h4>`
+          events += `<h4><b>${pursuer.actor.name}</b> can catch <b>${quarryCharacter.actor.name}</b>.</h4>`
         }
       })
     })
-    if (encounters !== "") {
-      let content = "<h2 style='text-align: center'>Encounters</h2>"
-      content += encounters
+    if (events !== "") {
+      let content = "<h2 style='text-align: center'>Events</h2>"
+      content += events
       return content;
     }
     return "";
@@ -83,19 +80,23 @@ class SimplePursuit {
 
   getChatPursuitTests(characters) {
     let slowestCharacter = characters.reduce((a, b) => a.actor.details.move.value < b.actor.details.move.value ? a : b).actor.details.move.value
-    let content = "<h2 style='text-align: center'>Roll Pursuit Tests</h2>"
-    characters.forEach(character => {
-      content += `<h4><b>${character.actor.name}</b> rolls with +${character.actor.details.move.value - slowestCharacter} SL.</h4>`
-    })
-    return content;
+    return characters.map(character => {
+      return `<h4><b>${character.actor.name}</b> rolls with +${character.actor.details.move.value - slowestCharacter} SL.</h4>`
+    }).join("")
+  }
+
+  //-------------//
+
+  getCharacters() {
+    return this.objectsInPursuit.filter(o => o.type = "character")
   }
 
   getLostCharacters(characters) {
     characters = sortObjects(characters)
     let minIndex = 0;
     for (let i = characters.length - 1; i > 0; i--) {
-      let characterA = this.characters[i - 1];
-      let characterB = this.characters[i];
+      let characterA = this.objectsInPursuit[i - 1];
+      let characterB = this.objectsInPursuit[i];
       if (characterB.distance - characterA.distance >= this.maxDistance) {
         minIndex = i;
         break;
@@ -108,9 +109,9 @@ class SimplePursuit {
 
   processInitialDialog(html) {
     const form = new FormDataExtended(html[0].querySelector("form")).object;
-    for (let i = 0; i < this.characters.length; i++) {
-      this.characters[i].distance = form.distance[i]
-      this.characters[i].quarry = form.quarry[i]
+    for (let i = 0; i < this.objectsInPursuit.length; i++) {
+      this.objectsInPursuit[i].distance = form.distance[i]
+      this.objectsInPursuit[i].quarry = form.quarry[i]
     }
   }
 
@@ -118,58 +119,44 @@ class SimplePursuit {
     const form = new FormDataExtended(html[0].querySelector("form")).object;
 
     let newCharacters = []
-    for (let i = 0;i < this.characters.length;i++) {
+    for (let i = 0; i < this.objectsInPursuit.length; i++) {
       if (form.inPursuit[i]) {
-        let character = this.characters[i]
+        let character = this.objectsInPursuit[i]
         character.distance += form.SL[i]
         newCharacters.push(character)
       }
     }
 
-    let newObstacles = []
-    for (let i = 0;i < this.characters.length;i++) {
-      if (form.inPursuit[this.characters.length + i]) {
-        let obstacle = this.obstacles[i]
-        newObstacles.push(obstacle)
-      }
-    }
-
-    let minDistance = [...newCharacters, ...newObstacles].reduce((a, b) => a.distance < b.distance ? a : b).distance
+    let minDistance = newCharacters.reduce((a, b) => a.distance < b.distance ? a : b).distance
     for (let i = 0; i < newCharacters.length; i++) {
       newCharacters[i].distance -= minDistance
     }
-    for (let i = 0; i < newObstacles.length; i++) {
-      newObstacles[i].distance -= minDistance
-    }
 
-    this.characters = newCharacters
-    this.obstacles = newObstacles
+    this.objectsInPursuit = newCharacters
   }
 
   //-------------//
 
   renderCreatePursuitDialog() {
-    let content = `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Quarry and Initial Distance</b></h2></span>`
-    content += `<table>
-      <tr>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Initial Distance</td>
-      </tr>`
-    this.characters.forEach(character => {
-      content += `<tr>
-        <td style="text-align: center;"><input id="quarry" name="quarry" style="text-align: center" type="checkbox"></td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.actor.name}</td>
-        <td><input id="distance" name="distance" style="text-align: center" type="number" value="0" min="0" step="1"></td>
-      </tr>`
-    })
-    content += `</table>`
-
     new Dialog({
       title: this.initialDialogName,
       content: `<form>
         ${this.initialDialogHeader}
-        ${content}
+        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Quarry and Initial Distance</b></h2>
+        <table>
+          <tr>
+            <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</td>
+            <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
+            <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Initial Distance</td>
+          </tr>
+        ${this.objectsInPursuit.map(character => {
+          return `<tr>
+              <td style="text-align: center;"><input id="quarry" name="quarry" style="text-align: center" type="checkbox"></td>
+              <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.actor.name}</td>
+              <td><input id="distance" name="distance" style="text-align: center" type="number" value="0" min="0" step="1"></td>
+            </tr>`
+        }).join("")}
+        </table>
         ${this.initialDialogFooter}
       </form>`,
       buttons: {
@@ -178,25 +165,22 @@ class SimplePursuit {
           label: "Start",
           callback: async (html) => {
             this.processInitialDialog(html)
-            this.nextTurn(this.characters)
+            this.nextTurn(this.objectsInPursuit)
           },
-        }, no: {
-          icon: "<i class='fas fa-times'></i>",
-          label: "Cancel"
         }
       }, default: "yes"
     }, DIALOG_SIZE).render(true);
   }
 
   renderNextTurnDialog() {
-    let content = `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Update Characters in Pursuit</b></h2></span>`
+    let content = `<h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Update Characters' Distance</b></h2>`
     content += `<table>
       <tr>
         <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</td>
         <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
         <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Test SLs</td>
       </tr>`
-    this.characters.forEach(character => {
+    this.objectsInPursuit.forEach(character => {
       content += `<tr>
         <td style="text-align: center;"><input id="inPursuit" name="inPursuit" style="text-align: center" type="checkbox" checked></td>
         <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.actor.name}</td>
@@ -204,23 +188,23 @@ class SimplePursuit {
       </tr>`
     })
     content += `</table>`
-    if (this.obstacles.length !== 0) {
-      content += `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Obstacles</b></h2></span>`
-      content += `<table>
-      <tr>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Distance</td>
-      </tr>`
-      this.obstacles.forEach(object => {
-        content += `<tr>
-          <td style="text-align: center;"><input id="inPursuit" name="inPursuit" style="text-align: center" type="checkbox" checked></td>
-          <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${object.obstacle.name}</td>
-          <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${Math.floor(object.distance)}</td>
-        </tr>`
-      })
-      content += `</table>`
-    }
+    // if (this.obstacles.length !== 0) {
+    //   content += `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Obstacles</b></h2></span>`
+    //   content += `<table>
+    //   <tr>
+    //     <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</td>
+    //     <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
+    //     <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Distance</td>
+    //   </tr>`
+    //   this.obstacles.forEach(object => {
+    //     content += `<tr>
+    //       <td style="text-align: center;"><input id="inPursuit" name="inPursuit" style="text-align: center" type="checkbox" checked></td>
+    //       <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${object.obstacle.name}</td>
+    //       <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${Math.floor(object.distance)}</td>
+    //     </tr>`
+    //   })
+    //   content += `</table>`
+    // }
 
     new Dialog({
       title: `Turn ${this.turn}`,
@@ -252,24 +236,24 @@ class SimplePursuit {
 
   nextTurn() {
     this.turn += 1
-    this.characters = sortObjects(this.characters)
 
     // Create chat message
     let content = `<h1 style="text-align: center">Pursuit - Turn ${this.turn}</h1>`
     content += this.getChatTable();
 
-    let lostCharacters = this.getLostCharacters(this.characters);
-    this.characters = this.characters.filter(i => !lostCharacters.includes(i))
-    content += this.getChatEncounters(lostCharacters);
+    let lostCharacters = this.getLostCharacters(this.objectsInPursuit);
+    this.objectsInPursuit = this.objectsInPursuit.filter(i => !lostCharacters.includes(i))
+    content += this.getChatEvents(lostCharacters);
 
-    if (this.characters.filter(c => !c.quarry).length === 0) {
+    if (this.objectsInPursuit.filter(c => !c.quarry).length === 0) {
       content += `<h1>Result</h1><b>Quarry escaped.</b>`
       if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
-    } else if (this.characters.filter(c => c.quarry).length === 0) {
+    } else if (this.objectsInPursuit.filter(c => c.quarry).length === 0) {
       content += `<h1>Result</h1><b>Quarry has been caught.</b>`
       if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
     } else {
-      content += this.getChatPursuitTests(this.characters);
+      content += "<h2 style='text-align: center'>Roll Pursuit Tests</h2>"
+      content += this.getChatPursuitTests(this.objectsInPursuit);
       if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
       this.renderNextTurnDialog();
     }
@@ -358,8 +342,8 @@ class SimplePursuit {
 }
 
 class ComplexPursuit extends SimplePursuit {
-  constructor(characters) {
-    super(characters);
+  constructor(objectsInPursuit) {
+    super(objectsInPursuit);
     this.initialDialogHeader = `<h2 style="text-align:center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Environment</b></h2>
       <div class="form-group flexcol">
         <select style="text-align: center" id="maxDistance" name="maxDistance">
@@ -379,40 +363,51 @@ class ComplexPursuit extends SimplePursuit {
   processInitialDialog(html) {
     const form = new FormDataExtended(html[0].querySelector("form")).object;
     this.maxDistance = form.maxDistance
-    for (let i = 0; i < this.characters.length; i++) {
-      this.characters[i].distance = form.distance[i]
-      this.characters[i].quarry = form.quarry[i]
+    for (let i = 0; i < this.objectsInPursuit.length; i++) {
+      this.objectsInPursuit[i].distance = form.distance[i]
+      this.objectsInPursuit[i].quarry = form.quarry[i]
     }
+  }
+
+  getChatPursuitTests(characters) {
+    return characters.map(character => {
+      let content = `<h4><b>${character.actor.name}</b> rolls with `
+      switch (character.actor.details.move.value) {
+        case 1: content += '-30 modifier.</h4>'; break;
+        case 2: content += '-20 modifier.</h4>.'; break;
+        case 3: content += '+0 modifier.</h4>'; break;
+        default: content += '+20 modifier.</h4>'; break;
+      }
+      return content
+    }).join("");
   }
 }
 
 function main() {
   let characters = []
   if (game.user.targets.size >= 1) {
-    characters = Array.from(game.user.targets.map(g => {return {actor: g.actor, distance: 0, quarry: false}}))
+    characters = Array.from(game.user.targets.map(t => {
+      return {
+        actor: t.actor,
+        type: "character",
+        distance: 0,
+        quarry: false
+      }}))
   } else {
     return ui.notifications.error("No actors chosen", {})
   }
-  characters = sortObjects(characters);
 
   let chooseModeContent = `<form>
-      <span style="text-align: center">
-        <h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Pursuit Mode</b></h2>
-      </span>
-      <div class="form-group flexcol">
+      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Pursuit Mode</b></h2>
+      <div class="form-group">
         <select style="text-align: center" id="mode" name="mode">
           <option value="simple" ${DEFAULT_MODE === "simple" ? "selected" : ""}>Simple</option>
           <option value="complex" ${DEFAULT_MODE !== "simple" ? "selected" : ""}>Complex</option>
         </select>
       </div>
-      <span style="text-align: center">
-        <h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Characters in Pursuit</b></h2>
-      </span>
-      <table>
-        <tr>
-          <td colspan="2" style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
-        </tr>`
-  characters.forEach(character => {
+      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Choose Characters in Pursuit</b></h2>
+      <table>`
+  sortObjects(characters).forEach(character => {
     chooseModeContent += `<tr>
         <td style="text-align: center;"><input id="inPursuit" name="inPursuit" style="text-align: center" type="checkbox" checked></td>
         <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.actor.name}</td>
@@ -440,10 +435,7 @@ function main() {
             let pursuit = new SimplePursuit(charactersInPursuit);
             pursuit.renderCreatePursuitDialog()
           }
-        } ,
-      }, no: {
-        icon: "<i class='fas fa-times'></i>",
-        label: "Cancel"
+        }
       }
     }, default: "yes"
   }).render(true);
