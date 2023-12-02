@@ -128,10 +128,10 @@ function getHTMLForm() {
           form += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">${game.i18n.localize(WFRP4E.trappingCategories[categoryName])} (${categoryEnc})</p>`
           for (const item of categoryList) {
             form += `<div class="form-group">
-              <p style="flex: 1;text-align: center">${formatItemEnc(item)}</p>
-              <p style="flex: 5;text-align: center">${item.name}</p>
-              <p style="flex: 1;text-align: center">${item.quantity.value}</p>
-              <p style="flex: 1;text-align: center">&#8594;</p>
+              <span style="flex: 1;text-align: center">${formatItemEnc(item)}</span>
+              <span style="flex: 5;text-align: center">${item.name}</span>
+              <span style="flex: 1;text-align: center">${item.quantity.value}</span>
+              <span style="flex: 1;text-align: center">&#8594;</span>
               ${createSelectTag(item, actor, container)}
             </div>`
           }
