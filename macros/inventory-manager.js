@@ -112,10 +112,12 @@ function getHTMLForm() {
         form += `<h3 style="font-family: CaslonAntique;font-size: 30px;font-variant: small-caps;font-weight: bold">${container.name.toLocaleUpperCase("pl")} (${container.value.system.status.encumbrance.current}/${container.value.system.status.encumbrance.max})</h3>`
       } else {
         form += `
-          <div class="form-group">
-          <h3 style="flex: 1">${formatItemEnc(container.value)}</h3>
-          <h3 style="flex: 10">${container.name} (${containerItemsEnc}/${container.value.carries.value ?? '-'})</h3>
-          </div>`
+          <h3>
+            <div class="form-group">
+              <span style="flex: 1;text-align: center">${formatItemEnc(container.value)}</span>
+              <span style="flex: 10">${container.name} (${containerItemsEnc}/${container.value.carries.value ?? '-'})</span>
+            </div>
+          </h3>`
       }
 
       for (const [categoryName, categoryList] of Object.entries(containerItems)) {
