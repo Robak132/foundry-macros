@@ -5,10 +5,12 @@
 * DESCRIPTION: Allows for creating pursuits (Core & UiA rules)
 ========== */
 
-const DIALOG_SIZE = {width: 500};
-const POST_TO_CHAT = true;
-const DEFAULT_MODE = "complex"; // ["complex", "simple"]
+// Settings
+const DIALOG_SIZE = {width: 600};
+const POST_TO_CHAT = false;
+const DEFAULT_MODE = "complex"; // "complex" "simple" "" <- regulated by dialog if empty
 
+// Main code
 main()
 
 function sortObjects(objects) {
@@ -31,10 +33,21 @@ class SimplePursuit {
       <h4><b>Fleeing: </b>3 Distance, if opponent attacks, 1 Distance if not.</h4>`
   }
 
-  //-------------//
+  getPursuitObjectFromActor(target) {
+    return {
+      active: true,
+      name: target.actor.name,
+      move: target.actor.details.move.value,
+      actor: target.actor,
+      type: "character",
+      distance: 0,
+      quarry: false
+    }
+  }
+
+//-------------//
 
   getChatTable() {
-    let maxPursuerDistance = this.getPursuers().reduce((a, b) => a.distance > b.distance ? a : b).distance
     let content = `
       <table>
         <tr>
@@ -53,10 +66,24 @@ class SimplePursuit {
         </tr>`
     })
     content += `</table>`
-    this.getQuarry().forEach(character => {
-      content += `<h4><b>${character.actor.name}</b> needs ${this.maxDistance - character.distance + maxPursuerDistance} Distance to escape.</b></h4>`
-    })
     return content;
+  }
+
+  getChatEscapes() {
+    const maxPursuerDistance = this.getPursuers().reduce((a, b) => a.distance > b.distance ? a : b).distance
+
+    let content = ''
+    this.getQuarry().forEach(character => {
+      const distanceRemaining = this.maxDistance - character.distance + maxPursuerDistance
+      if (distanceRemaining > 0) {
+        content += `<h4><b>${character.actor.name}</b> needs ${distanceRemaining} Distance to escape.</h4>`
+      } else {
+        character.active = false
+        character.distance = 0
+        content += `<h4><b>${character.actor.name}</b> escapes.</h4>`
+      }
+    })
+    return content
   }
 
   getChatLostCharacters() {
@@ -70,6 +97,7 @@ class SimplePursuit {
       }
       if (isLost) {
         characters[i - 1].active = false
+        characters[i - 1].distance = 0
         lostSightText += `<h4><b>${characters[i - 1].name}</b> lost sight with rest of Pursuit.</h4>`
       }
     }
@@ -99,6 +127,10 @@ class SimplePursuit {
 
   //-------------//
 
+  getInactive() {
+    return this.objectsInPursuit.filter(o => !o.active)
+  }
+
   getCharacters() {
     return this.objectsInPursuit.filter(o => o.type === "character" && o.active)
   }
@@ -126,11 +158,9 @@ class SimplePursuit {
 
     let newCharacters = []
     for (let i = 0; i < this.objectsInPursuit.length; i++) {
-      if (form.inPursuit[i]) {
-        let character = this.objectsInPursuit[i]
-        character.distance += form.SL[i]
-        newCharacters.push(character)
-      }
+      let character = this.objectsInPursuit[i]
+      character.distance += form.SL[i]
+      newCharacters.push(character)
     }
 
     let minDistance = newCharacters.reduce((a, b) => a.distance < b.distance ? a : b).distance
@@ -151,7 +181,7 @@ class SimplePursuit {
       </h2>
       <div class="form-group">
         <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</span>
-        <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
+        <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
         <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Initial Distance</span>
       </div>`
     this.getCharacters().forEach(character => {
@@ -160,7 +190,7 @@ class SimplePursuit {
           <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
             <input name="quarry" style="text-align: center" type="checkbox">
           </div>
-          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
             ${character.actor.name}
           </span>
           <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
@@ -179,7 +209,7 @@ class SimplePursuit {
         yes: {
           icon: "<i class='fas fa-check'></i>",
           label: "Start",
-          callback: async (html) => {
+          callback: (html) => {
             this.processInitialDialog(html)
             this.objectsInPursuit = sortObjects(this.objectsInPursuit)
             if (this.getQuarry().length) {
@@ -192,33 +222,53 @@ class SimplePursuit {
     }, DIALOG_SIZE).render(true);
   }
 
+  getNextTurnRow(character) {
+    return `
+        <div class="form-group">
+          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input name="inPursuit" type="checkbox" ${character.active ? 'checked' : ''}>
+          </div>
+          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            ${character.name}
+          </span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input name="move" type="number" value="${character.move}" min="0" step="1">
+          </span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input name="distance" type="number" value="${character.distance}" min="0" step="1">
+          </span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input id="SL" name="SL" type="number" value="0" step="1">
+          </span>
+        </div>`
+  }
+
   renderNextTurnDialog() {
     let content = `
-      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-        <b>Update Characters' Distance</b>
-      </h2>
-      <table>
-      <tr>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Test SLs</td>
-      </tr>`
+      <form>
+        <div class="form-group">
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit?</span>
+          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Move</span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Distance</span>
+          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Test SLs</span>
+        </div>
+        <p style="text-align: center;font-variant: small-caps;font-weight: bold;">Pursuers</p>`
     this.getPursuers().forEach(character => {
-      content += `<tr>
-        <td style="text-align: center;"><input id="active" name="active" style="text-align: center" type="checkbox" checked></td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.name}</td>
-        <td><input id="SL" name="SL" style="text-align: center" type="number" value="0" step="1"></td>
-      </tr>`
+      content += this.getNextTurnRow(character);
     })
-    content += `<hl>`
+    content += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">Quarry</p>`
     this.getQuarry().forEach(character => {
-      content += `<tr>
-        <td style="text-align: center;"><input id="active" name="active" style="text-align: center" type="checkbox" checked></td>
-        <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.name}</td>
-        <td><input id="SL" name="SL" style="text-align: center" type="number" value="0" step="1"></td>
-      </tr>`
+      content += this.getNextTurnRow(character);
     })
-    content += `</table>`
+    const inactiveObjects = this.getInactive()
+    // if (inactiveObjects.length) {
+    content += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">Inactive</p>`
+    inactiveObjects.forEach(character => {
+      content += this.getNextTurnRow(character);
+    })
+    // }
+    content += `</form>`
     // if (this.obstacles.length !== 0) {
     //   content += `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Obstacles</b></h2></span>`
     //   content += `<table>
@@ -238,9 +288,14 @@ class SimplePursuit {
     // }
 
     new Dialog({
-      title: `Turn ${this.turn}`,
-      content: `<form>${content}</form>`,
+      title: `Pursuit - Turn ${this.turn}`,
+      content: content,
       buttons: {
+        obstacle: {
+          icon: "<i class='fas fa-mountains'></i>",
+          label: "Add Obstacle",
+          callback: () => this.addObstacle(),
+        },
         yes: {
           icon: "<i class='fas fa-check'></i>",
           label: "Next Turn",
@@ -250,21 +305,12 @@ class SimplePursuit {
             this.nextTurn()
           },
         },
-        obstacle: {
-          icon: "<i class='fas fa-mountains'></i>",
-          label: "Add Obstacle",
-          callback: () => this.addObstacle(),
-        },
-        no: {
-          icon: "<i class='fas fa-times'></i>",
-          label: "Finish",
-        }
       },
       default: "yes"
     }, DIALOG_SIZE).render(true);
   }
 
-  //-------------//
+//-------------//
 
   nextTurn() {
     this.turn += 1
@@ -273,27 +319,23 @@ class SimplePursuit {
     let content = `<h1 style="text-align: center">Pursuit - Turn ${this.turn}</h1>`
     content += this.getChatTable();
 
+    content += this.getChatEscapes();
+    content += this.getChatLostCharacters();
+
     // Create events
-    let events = this.getChatLostCharacters();
-    events += this.getChatCatchEvents();
+    let events = this.getChatCatchEvents();
     if (events !== "") {
       content += "<h2 style='text-align: center'>Events</h2>"
       content += events
     }
 
     // Check end
-    if (this.getPursuers().length === 0) {
-      content += `<h1>Result</h1><b>Quarry escaped.</b>`
-      if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
-    } else if (this.getQuarry().length === 0) {
-      content += `<h1>Result</h1><b>Quarry has been caught.</b>`
-      if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
-    } else {
+    if (this.getQuarry().length !== 0 && this.getPursuers().length !== 0) {
       content += "<h2 style='text-align: center'>Roll Pursuit Tests</h2>"
       content += this.getChatPursuitTests();
-      if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
       this.renderNextTurnDialog();
     }
+    if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
   }
 
   // addObstacle() {
@@ -423,11 +465,13 @@ class ComplexPursuit extends SimplePursuit {
   //-------------//
 
   processInitialDialog(html) {
+    const characters = this.getCharacters()
     const form = new FormDataExtended(html[0].querySelector("form")).object;
+
     this.maxDistance = form.maxDistance
-    for (let i = 0; i < this.objectsInPursuit.length; i++) {
-      this.objectsInPursuit[i].distance = form.distance[i]
-      this.objectsInPursuit[i].quarry = form.quarry[i]
+    for (let i = 0; i < characters.length; i++) {
+      characters[i].distance = form.distance[i]
+      characters[i].quarry = form.quarry[i]
     }
   }
 }
