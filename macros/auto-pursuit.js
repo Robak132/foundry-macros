@@ -8,22 +8,16 @@
 // Settings
 const DIALOG_SIZE = {width: 600};
 const POST_TO_CHAT = false;
-const DEFAULT_MODE = "complex"; // "complex" "simple" "" <- regulated by dialog if empty
 
 // Main code
 main()
 
-function sortObjects(objects) {
-  return objects
-    .sort((a, b) => a.actor && b.actor && a.actor.name.localeCompare(b.actor.name, 'pl'))
-    .sort((a, b) => a.actor && b.actor && a.actor.details.move.value < b.actor.details.move.value ? -1 : 1)
-    .sort((a, b) => Number(a.quarry) - Number(b.quarry))
-    .sort((a, b) => a.distance < b.distance ? -1 : 1)
-}
-
 class SimplePursuit {
-  constructor(objectsInPursuit) {
-    this.objectsInPursuit = objectsInPursuit
+  constructor() {
+    this.objectsInPursuit = []
+    game.user.targets.forEach(t => {
+      this.objectsInPursuit.push(this.getPursuitObjectFromActor(t.actor))
+    })
     this.maxDistance = 10
     this.turn = 0
     this.initialDialogHeader = ``
@@ -33,16 +27,24 @@ class SimplePursuit {
       <h4><b>Fleeing: </b>3 Distance, if opponent attacks, 1 Distance if not.</h4>`
   }
 
-  getPursuitObjectFromActor(target) {
+  getPursuitObjectFromActor(actor) {
     return {
       active: true,
-      name: target.actor.name,
-      move: target.actor.details.move.value,
-      actor: target.actor,
+      name: actor.name,
+      move: actor.details.move.value,
+      actor: actor,
       type: "character",
       distance: 0,
       quarry: false
     }
+  }
+
+  sortObjects(objects) {
+    return objects
+      .sort((a, b) => a.actor && b.actor && a.actor.name.localeCompare(b.actor.name, 'pl'))
+      .sort((a, b) => a.actor && b.actor && a.actor.details.move.value < b.actor.details.move.value ? -1 : 1)
+      .sort((a, b) => Number(a.quarry) - Number(b.quarry))
+      .sort((a, b) => a.distance < b.distance ? -1 : 1)
   }
 
 //-------------//
@@ -155,10 +157,11 @@ class SimplePursuit {
 
   processDialog(html) {
     const form = new FormDataExtended(html[0].querySelector("form")).object;
+    const characters = this.getCharacters()
 
     let newCharacters = []
-    for (let i = 0; i < this.objectsInPursuit.length; i++) {
-      let character = this.objectsInPursuit[i]
+    for (let i = 0; i < characters.length; i++) {
+      let character = characters[i]
       character.distance += form.SL[i]
       newCharacters.push(character)
     }
@@ -211,11 +214,21 @@ class SimplePursuit {
           label: "Start",
           callback: (html) => {
             this.processInitialDialog(html)
-            this.objectsInPursuit = sortObjects(this.objectsInPursuit)
+            this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
             if (this.getQuarry().length) {
               this.nextTurn()
             }
           },
+        },
+        addPerson: {
+          icon: "<i class='fas fa-person'></i>",
+          label: "Add Actors",
+          callback: (html) => {
+          },
+        },
+        no: {
+          icon: "<i class='fas fa-times'></i>",
+          label: "Cancel"
         }
       },
       default: "yes"
@@ -262,12 +275,12 @@ class SimplePursuit {
       content += this.getNextTurnRow(character);
     })
     const inactiveObjects = this.getInactive()
-    // if (inactiveObjects.length) {
-    content += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">Inactive</p>`
-    inactiveObjects.forEach(character => {
-      content += this.getNextTurnRow(character);
-    })
-    // }
+    if (inactiveObjects.length) {
+      content += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">Inactive</p>`
+      inactiveObjects.forEach(character => {
+        content += this.getNextTurnRow(character);
+      })
+    }
     content += `</form>`
     // if (this.obstacles.length !== 0) {
     //   content += `<span style="text-align: center"><h2 style="font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Obstacles</b></h2></span>`
@@ -301,7 +314,7 @@ class SimplePursuit {
           label: "Next Turn",
           callback: (html) => {
             this.processDialog(html)
-            this.objectsInPursuit = sortObjects(this.objectsInPursuit)
+            this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
             this.nextTurn()
           },
         },
@@ -421,8 +434,8 @@ class SimplePursuit {
 }
 
 class ComplexPursuit extends SimplePursuit {
-  constructor(objectsInPursuit) {
-    super(objectsInPursuit);
+  constructor() {
+    super();
     this.initialDialogHeader = `<h2 style="text-align:center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Environment</b></h2>
       <div class="form-group flexcol">
         <select style="text-align: center" id="maxDistance" name="maxDistance">
@@ -477,69 +490,22 @@ class ComplexPursuit extends SimplePursuit {
 }
 
 function main() {
-  let characters = []
-  if (game.user.targets.size >= 1) {
-    characters = Array.from(game.user.targets.map(t => {
-      return {
-        active: true,
-        name: t.actor.name,
-        move: t.actor.details.move.value,
-        actor: t.actor,
-        type: "character",
-        distance: 0,
-        quarry: false
-      }
-    }))
-  } else {
-    return ui.notifications.error("No actors chosen", {})
-  }
-
   new Dialog({
-    title: "Create Pursuit",
+    title: "Choose Pursuit Mode",
     content: `
-      <form>
-        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-          <b>Choose Pursuit Mode</b>
-        </h2>
-        <div class="form-group">
-          <select style="text-align: center" id="mode" name="mode">
-            <option value="simple" ${DEFAULT_MODE === "simple" ? "selected" : ""}>Simple</option>
-            <option value="complex" ${DEFAULT_MODE !== "simple" ? "selected" : ""}>Complex</option>
-          </select>
-        </div>
-        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-          <b>Choose Characters in Pursuit</b>
-        </h2>
-       <table>
-      ${characters.map(character => {
-      return `<tr>
-          <td style="text-align: center;"><input id="inPursuit" name="inPursuit" style="text-align: center" type="checkbox" checked></td>
-          <td style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">${character.actor.name}</td>
-        </tr>`
-    }).join("")}
-       </table>
-     </form>`,
+      <div class="delete-item-dialog selection">
+        <label>Choose in which mode you want to run this tool.</label> 
+      </div>`,
     buttons: {
-      yes: {
-        icon: "<i class='fas fa-check'></i>",
-        label: "Next",
-        callback: async (html) => {
-          let {
-            mode,
-            inPursuit
-          } = new FormDataExtended(html[0].querySelector("form")).object;
-          let charactersInPursuit = []
-          for (let i = 0; i < characters.length; i++) {
-            if (inPursuit[i]) {
-              charactersInPursuit.push(characters[i])
-            }
-          }
-          charactersInPursuit = sortObjects(charactersInPursuit)
-          let pursuit = mode === "complex" ? new ComplexPursuit(charactersInPursuit) : new SimplePursuit(charactersInPursuit)
-          pursuit.renderCreatePursuitDialog()
-        }
-      }
+      simple: {
+        label: "Simple (Core)",
+        callback: () => new SimplePursuit().renderCreatePursuitDialog()
+      },
+      complex: {
+        label: "Complex (UiA)",
+        callback: () => new ComplexPursuit().renderCreatePursuitDialog()
+      },
     },
-    default: "yes"
+    default: "complex"
   }).render(true);
 }
