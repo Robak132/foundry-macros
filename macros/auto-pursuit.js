@@ -6,7 +6,7 @@
 ========== */
 
 // Settings
-const DIALOG_SIZE = {width: 600};
+const DIALOG_SIZE = {width: 500};
 const POST_TO_CHAT = false;
 
 // Main code
@@ -14,10 +14,8 @@ main()
 
 class SimplePursuit {
   constructor() {
-    this.objectsInPursuit = []
-    game.user.targets.forEach(t => {
-      this.objectsInPursuit.push(this.getPursuitObjectFromActor(t.actor))
-    })
+    this.objectsInPursuit = this.initObjectList();
+    console.log(this.objectsInPursuit)
     this.maxDistance = 10
     this.turn = 0
     this.initialDialogHeader = ``
@@ -27,27 +25,47 @@ class SimplePursuit {
       <h4><b>Fleeing: </b>3 Distance, if opponent attacks, 1 Distance if not.</h4>`
   }
 
+  initObjectList() {
+    let objectsInPursuitSet = new Set()
+    if (game.user.targets.size) {
+      game.user.targets.forEach(t => {
+        objectsInPursuitSet.add(this.getPursuitObjectFromActor(t.actor))
+      })
+    } else {
+      game.gmtoolkit.utility.getGroup("company").filter(a => a.type === "character").forEach(a => {
+        objectsInPursuitSet.add(this.getPursuitObjectFromActor(a))
+      })
+    }
+    return [...objectsInPursuitSet]
+  }
+
+  sortObjects(objects) {
+    return objects
+      .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+      .sort((a, b) => a.move < b.move ? -1 : 1)
+      .sort((a, b) => Number(a.quarry) - Number(b.quarry))
+      .sort((a, b) => a.distance < b.distance ? -1 : 1)
+  }
+
+  //-------------//
+
   getPursuitObjectFromActor(actor) {
     return {
       active: true,
       name: actor.name,
-      move: actor.details.move.value,
-      actor: actor,
+      move: actor.system.details.move.value,
+      run: actor.system.details.move.run,
       type: "character",
       distance: 0,
       quarry: false
     }
   }
 
-  sortObjects(objects) {
-    return objects
-      .sort((a, b) => a.actor && b.actor && a.actor.name.localeCompare(b.actor.name, 'pl'))
-      .sort((a, b) => a.actor && b.actor && a.actor.details.move.value < b.actor.details.move.value ? -1 : 1)
-      .sort((a, b) => Number(a.quarry) - Number(b.quarry))
-      .sort((a, b) => a.distance < b.distance ? -1 : 1)
+  getCharacterMove(character) {
+    return `${character.move}`
   }
 
-//-------------//
+  //-------------//
 
   getChatTable() {
     let content = `
@@ -78,11 +96,11 @@ class SimplePursuit {
     this.getQuarry().forEach(character => {
       const distanceRemaining = this.maxDistance - character.distance + maxPursuerDistance
       if (distanceRemaining > 0) {
-        content += `<h4><b>${character.actor.name}</b> needs ${distanceRemaining} Distance to escape.</h4>`
+        content += `<h4><b>${character.name}</b> needs ${distanceRemaining} Distance to escape.</h4>`
       } else {
         character.active = false
         character.distance = 0
-        content += `<h4><b>${character.actor.name}</b> escapes.</h4>`
+        content += `<h4><b>${character.name}</b> escapes.</h4>`
       }
     })
     return content
@@ -112,7 +130,7 @@ class SimplePursuit {
     this.getQuarry().forEach(quarry => {
       this.getPursuers().forEach(pursuer => {
         if (quarry.distance === pursuer.distance) {
-          events += `<h4><b>${pursuer.actor.name}</b> can catch <b>${quarry.actor.name}</b>.</h4>`
+          events += `<h4><b>${pursuer.name}</b> can catch <b>${quarry.name}</b>.</h4>`
         }
       })
     })
@@ -121,10 +139,12 @@ class SimplePursuit {
 
   getChatPursuitTests() {
     const characters = this.getCharacters()
-    let slowestCharacter = characters.reduce((a, b) => a.actor.details.move.value < b.actor.details.move.value ? a : b).actor.details.move.value
-    return characters.map(character => {
-      return `<h4><b>${character.actor.name}</b> rolls with +${character.actor.details.move.value - slowestCharacter} SL.</h4>`
-    }).join("")
+    const slowestCharacter = characters.reduce((a, b) => a.move < b.move ? a : b).move
+    let pursuitTests = ""
+    characters.forEach(character => {
+      pursuitTests += `<h4><b>${character.name}</b> rolls with +${character.move - slowestCharacter} SL.</h4>`
+    })
+    return pursuitTests
   }
 
   //-------------//
@@ -147,35 +167,6 @@ class SimplePursuit {
 
   //-------------//
 
-  processInitialDialog(html) {
-    const form = new FormDataExtended(html[0].querySelector("form")).object;
-    for (let i = 0; i < this.objectsInPursuit.length; i++) {
-      this.objectsInPursuit[i].distance = form.distance[i]
-      this.objectsInPursuit[i].quarry = form.quarry[i]
-    }
-  }
-
-  processDialog(html) {
-    const form = new FormDataExtended(html[0].querySelector("form")).object;
-    const characters = this.getCharacters()
-
-    let newCharacters = []
-    for (let i = 0; i < characters.length; i++) {
-      let character = characters[i]
-      character.distance += form.SL[i]
-      newCharacters.push(character)
-    }
-
-    let minDistance = newCharacters.reduce((a, b) => a.distance < b.distance ? a : b).distance
-    for (let i = 0; i < newCharacters.length; i++) {
-      newCharacters[i].distance -= minDistance
-    }
-
-    this.objectsInPursuit = newCharacters
-  }
-
-  //-------------//
-
   renderCreatePursuitDialog() {
     let content = `<form>
       ${this.initialDialogHeader}
@@ -183,22 +174,26 @@ class SimplePursuit {
         <b>Choose Quarry and Initial Distance</b>
       </h2>
       <div class="form-group">
-        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</span>
+        <span style="flex: 2;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</span>
         <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
         <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Initial Distance</span>
+        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</span>
       </div>`
     this.getCharacters().forEach(character => {
       content += `
         <div class="form-group">
-          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            <input name="quarry" style="text-align: center" type="checkbox">
+          <div style="flex: 2;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input name="active" style="text-align: center" type="checkbox" checked>
           </div>
           <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            ${character.actor.name}
+            ${character.name}
           </span>
           <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
             <input name="distance" type="number" value="0" min="0" step="1">
           </span>
+          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+            <input name="quarry" style="text-align: center" type="checkbox">
+          </div>
         </div>`
     })
     content += `
@@ -213,8 +208,10 @@ class SimplePursuit {
           icon: "<i class='fas fa-check'></i>",
           label: "Start",
           callback: (html) => {
-            this.processInitialDialog(html)
+            this.processCreatePursuitDialog(html)
             this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
+            console.log(this.objectsInPursuit)
+            console.log(this.getQuarry())
             if (this.getQuarry().length) {
               this.nextTurn()
             }
@@ -223,7 +220,7 @@ class SimplePursuit {
         addPerson: {
           icon: "<i class='fas fa-person'></i>",
           label: "Add Actors",
-          callback: (html) => {
+          callback: () => {
           },
         },
         no: {
@@ -235,26 +232,15 @@ class SimplePursuit {
     }, DIALOG_SIZE).render(true);
   }
 
-  getNextTurnRow(character) {
-    return `
-        <div class="form-group">
-          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            <input name="inPursuit" type="checkbox" ${character.active ? 'checked' : ''}>
-          </div>
-          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            ${character.name}
-          </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            <input name="move" type="number" value="${character.move}" min="0" step="1">
-          </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            <input name="distance" type="number" value="${character.distance}" min="0" step="1">
-          </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            <input id="SL" name="SL" type="number" value="0" step="1">
-          </span>
-        </div>`
+  processCreatePursuitDialog(html) {
+    const form = new FormDataExtended(html[0].querySelector("form")).object;
+    for (let i = 0; i < this.objectsInPursuit.length; i++) {
+      this.objectsInPursuit[i].distance = form.distance[i]
+      this.objectsInPursuit[i].quarry = form.quarry[i]
+    }
   }
+
+  //-------------//
 
   renderNextTurnDialog() {
     let content = `
@@ -313,7 +299,7 @@ class SimplePursuit {
           icon: "<i class='fas fa-check'></i>",
           label: "Next Turn",
           callback: (html) => {
-            this.processDialog(html)
+            this.processNextTurnDialog(html)
             this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
             this.nextTurn()
           },
@@ -323,7 +309,47 @@ class SimplePursuit {
     }, DIALOG_SIZE).render(true);
   }
 
-//-------------//
+  getNextTurnRow(character) {
+    return `
+      <div class="form-group">
+        <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <input name="inPursuit" type="checkbox" ${character.active ? 'checked' : ''}>
+        </div>
+        <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          ${character.name}
+        </span>
+        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          ${this.getCharacterMove(character)}
+        </span>
+        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <input name="distance" type="number" value="${character.distance}" min="0" step="1">
+        </span>
+        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <input id="SL" name="SL" type="number" value="0" step="1">
+        </span>
+      </div>`
+  }
+
+  processNextTurnDialog(html) {
+    const form = new FormDataExtended(html[0].querySelector("form")).object;
+    const characters = this.getCharacters()
+
+    let newCharacters = []
+    for (let i = 0; i < characters.length; i++) {
+      let character = characters[i]
+      character.distance += form.SL[i]
+      newCharacters.push(character)
+    }
+
+    let minDistance = newCharacters.reduce((a, b) => a.distance < b.distance ? a : b).distance
+    for (let i = 0; i < newCharacters.length; i++) {
+      newCharacters[i].distance -= minDistance
+    }
+
+    this.objectsInPursuit = newCharacters
+  }
+
+  //-------------//
 
   nextTurn() {
     this.turn += 1
@@ -454,10 +480,16 @@ class ComplexPursuit extends SimplePursuit {
 
   //-------------//
 
+  getCharacterMove(character) {
+    return `${character.move} (${character.run})`
+  }
+
+  //-------------//
+
   getChatPursuitTests() {
     return this.getCharacters().map(character => {
-      let content = `<h4><b>${character.actor.name}</b> rolls with `
-      switch (character.actor.details.move.value) {
+      let content = `<h4><b>${character.name}</b> rolls with `
+      switch (character.move) {
         case 1:
           content += '-30 modifier.</h4>'
           break;
@@ -477,15 +509,10 @@ class ComplexPursuit extends SimplePursuit {
 
   //-------------//
 
-  processInitialDialog(html) {
-    const characters = this.getCharacters()
+  processCreatePursuitDialog(html) {
+    super.processCreatePursuitDialog(html)
     const form = new FormDataExtended(html[0].querySelector("form")).object;
-
     this.maxDistance = form.maxDistance
-    for (let i = 0; i < characters.length; i++) {
-      characters[i].distance = form.distance[i]
-      characters[i].quarry = form.quarry[i]
-    }
   }
 }
 
