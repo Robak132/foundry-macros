@@ -7,7 +7,7 @@
 
 // Settings
 const DIALOG_SIZE = {width: 500};
-const POST_TO_CHAT = false;
+const POST_TO_CHAT = true;
 
 // Main code
 main()
@@ -15,7 +15,6 @@ main()
 class SimplePursuit {
   constructor() {
     this.objectsInPursuit = this.initObjectList();
-    console.log(this.objectsInPursuit)
     this.maxDistance = 10
     this.turn = 0
     this.initialDialogHeader = ``
@@ -208,10 +207,9 @@ class SimplePursuit {
           icon: "<i class='fas fa-check'></i>",
           label: "Start",
           callback: (html) => {
-            this.processCreatePursuitDialog(html)
+            const form = new FormDataExtended(html[0].querySelector("form")).object;
+            this.processCreatePursuitDialog(form)
             this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
-            console.log(this.objectsInPursuit)
-            console.log(this.getQuarry())
             if (this.getQuarry().length) {
               this.nextTurn()
             }
@@ -232,12 +230,14 @@ class SimplePursuit {
     }, DIALOG_SIZE).render(true);
   }
 
-  processCreatePursuitDialog(html) {
-    const form = new FormDataExtended(html[0].querySelector("form")).object;
-    for (let i = 0; i < this.objectsInPursuit.length; i++) {
-      this.objectsInPursuit[i].distance = form.distance[i]
-      this.objectsInPursuit[i].quarry = form.quarry[i]
+  processCreatePursuitDialog(form) {
+    const characters = this.getCharacters()
+    for (let i = 0; i < characters.length; i++) {
+      characters[i].active = form.active[i]
+      characters[i].distance = form.distance[i]
+      characters[i].quarry = form.quarry[i]
     }
+    this.objectsInPursuit = this.objectsInPursuit.filter(o=>o.active)
   }
 
   //-------------//
@@ -290,30 +290,35 @@ class SimplePursuit {
       title: `Pursuit - Turn ${this.turn}`,
       content: content,
       buttons: {
-        obstacle: {
-          icon: "<i class='fas fa-mountains'></i>",
-          label: "Add Obstacle",
-          callback: () => this.addObstacle(),
-        },
         yes: {
           icon: "<i class='fas fa-check'></i>",
           label: "Next Turn",
-          callback: (html) => {
+          callback: async (html) => {
             this.processNextTurnDialog(html)
             this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
             this.nextTurn()
           },
         },
+        obstacle: {
+          icon: "<i class='fas fa-mountains'></i>",
+          label: "Add Obstacle",
+          callback: () => this.addObstacle(),
+        },
+        no: {
+          icon: "<i class='fas fa-times'></i>",
+          label: "Cancel"
+        }
       },
       default: "yes"
     }, DIALOG_SIZE).render(true);
   }
 
   getNextTurnRow(character) {
+    const characterId = this.objectsInPursuit.indexOf(character)
     return `
-      <div class="form-group">
+      <div class="form-group"">
         <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-          <input name="inPursuit" type="checkbox" ${character.active ? 'checked' : ''}>
+          <input data-character-id="${characterId}" name="active" type="checkbox" ${character.active ? 'checked' : ''}>
         </div>
         <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
           ${character.name}
@@ -322,31 +327,33 @@ class SimplePursuit {
           ${this.getCharacterMove(character)}
         </span>
         <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-          <input name="distance" type="number" value="${character.distance}" min="0" step="1">
+          <input data-character-id="${characterId}" name="distance" type="number" value="${character.distance}" min="0" step="1">
         </span>
         <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-          <input id="SL" name="SL" type="number" value="0" step="1">
+          <input data-character-id="${characterId}" name="SL" type="number" value="0" step="1">
         </span>
       </div>`
   }
 
   processNextTurnDialog(html) {
-    const form = new FormDataExtended(html[0].querySelector("form")).object;
-    const characters = this.getCharacters()
-
-    let newCharacters = []
-    for (let i = 0; i < characters.length; i++) {
-      let character = characters[i]
-      character.distance += form.SL[i]
-      newCharacters.push(character)
+    let form = {}
+    $(html).find("input")
+      .get()
+      .forEach((input) => {
+        let playerData = form[input.dataset.characterId] ?? {}
+        if (input.type === "checkbox") {
+          playerData[input.name] = input.checked
+        } else {
+          playerData[input.name] = input.value
+        }
+        form[input.dataset.characterId] = playerData
+      })
+    for (const [key, value] of Object.entries(form)) {
+      let character = this.objectsInPursuit[key]
+      character.active = value.active
+      character.distance = Number(value.distance)
+      character.distance += Number(value.SL)
     }
-
-    let minDistance = newCharacters.reduce((a, b) => a.distance < b.distance ? a : b).distance
-    for (let i = 0; i < newCharacters.length; i++) {
-      newCharacters[i].distance -= minDistance
-    }
-
-    this.objectsInPursuit = newCharacters
   }
 
   //-------------//
@@ -354,12 +361,15 @@ class SimplePursuit {
   nextTurn() {
     this.turn += 1
 
+    const lostCharactersMsg = this.getChatLostCharacters();
+    const escapesMsg = this.getChatEscapes();
+    this.normaliseDistance()
+
     // Create chat message
     let content = `<h1 style="text-align: center">Pursuit - Turn ${this.turn}</h1>`
-    content += this.getChatTable();
-
-    content += this.getChatEscapes();
-    content += this.getChatLostCharacters();
+    content += this.getChatTable()
+    content += lostCharactersMsg
+    content += escapesMsg
 
     // Create events
     let events = this.getChatCatchEvents();
@@ -375,6 +385,14 @@ class SimplePursuit {
       this.renderNextTurnDialog();
     }
     if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
+  }
+
+  normaliseDistance() {
+    const characters = this.getCharacters()
+    let minDistance = characters.reduce((a, b) => a.distance < b.distance ? a : b).distance
+    for (let i = 0; i < characters.length; i++) {
+      characters[i].distance -= minDistance
+    }
   }
 
   // addObstacle() {
@@ -509,9 +527,8 @@ class ComplexPursuit extends SimplePursuit {
 
   //-------------//
 
-  processCreatePursuitDialog(html) {
-    super.processCreatePursuitDialog(html)
-    const form = new FormDataExtended(html[0].querySelector("form")).object;
+  processCreatePursuitDialog(form) {
+    super.processCreatePursuitDialog(form)
     this.maxDistance = form.maxDistance
   }
 }
