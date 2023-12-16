@@ -5,11 +5,6 @@
 * DESCRIPTION: Allows for creating pursuits (Core & UiA rules)
 ========== */
 
-// Settings
-const NEXT_TURN_DIALOG_OPTIONS = {width: 650};
-const CREATE_PURSUIT_DIALOG_OPTIONS = {width: 500};
-const POST_TO_CHAT = true;
-
 // Preset Obstacles
 const PRESET_OBSTACLES = {
   large_log: {
@@ -53,9 +48,11 @@ const PRESET_OBSTACLES = {
 // Main code
 main()
 
-
 class SimplePursuit {
   MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
+  NEXT_TURN_DIALOG_OPTIONS = {width: 650};
+  CREATE_PURSUIT_DIALOG_OPTIONS = {width: 500};
+  POST_TO_CHAT = true;
 
   constructor() {
     this.objectsInPursuit = this.initObjectList();
@@ -286,7 +283,7 @@ class SimplePursuit {
         }
       },
       default: "yes"
-    }, CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
   }
 
   processCreatePursuitDialog(html) {
@@ -357,7 +354,7 @@ class SimplePursuit {
         }
       },
       default: "nextTurn"
-    }, NEXT_TURN_DIALOG_OPTIONS).render(true);
+    }, this.NEXT_TURN_DIALOG_OPTIONS).render(true);
   }
 
   getNextTurnRow(object) {
@@ -483,7 +480,7 @@ class SimplePursuit {
         }
       },
       default: "add"
-    }, CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
   }
 
   processAddActorDialog(form) {
@@ -576,7 +573,7 @@ class SimplePursuit {
         }
       },
       default: "yes"
-    }, CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
   }
 
   processAddObstacleDialog(html) {
@@ -627,7 +624,7 @@ class SimplePursuit {
       content += this.getChatPursuitTests();
       this.renderNextTurnDialog();
     }
-    if (POST_TO_CHAT) ChatMessage.create({content: content}, false);
+    if (this.POST_TO_CHAT) ChatMessage.create({content: content}, false);
   }
 
   normaliseDistance() {
