@@ -53,19 +53,22 @@ const PRESET_OBSTACLES = {
 // Main code
 main()
 
+
 class SimplePursuit {
+  MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
+
   constructor() {
     this.objectsInPursuit = this.initObjectList();
     this.maxDistance = 10
     this.turn = 0
     this.initialDialogHeader = ``
     this.initialDialogFooter = `
-      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Escaping from combat</b></h2>
+      <h2 style="${this.MAIN_STYLE}"><b>Escaping from combat</b></h2>
       <h4><b>Advantage: </b>1 Distance per spent Advantage.</h4>
       <h4><b>Dodge: </b>1 Distance.</h4>
       <h4><b>Fleeing: </b>3 Distance, if opponent attacks, 1 Distance if not.</h4>`
     this.nextTurnFooter = `
-      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Distance Update Rules</b></h2>
+      <h2 style="${this.MAIN_STYLE}"><b>Distance Update Rules</b></h2>
       <h4 style="text-align: center">Distance Moved = SL</h4>`
   }
 
@@ -88,6 +91,7 @@ class SimplePursuit {
       .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
       .sort((a, b) => a.move < b.move ? -1 : 1)
       .sort((a, b) => Number(a.quarry) - Number(b.quarry))
+      .sort((a, b) => Number(a.type === "obstacle") - Number(b.type === "obstacle"))
       .sort((a, b) => a.distance < b.distance ? -1 : 1)
   }
 
@@ -120,14 +124,20 @@ class SimplePursuit {
           <td style="text-align:center"><b>Move</b></td>
           <td style="text-align:center"><b>Distance</b></td>
         </tr>`
-    this.getCharacters().forEach(object => {
-      content += `
-        <tr>
+    this.getActive().forEach(object => {
+      if (object.type === "character") {
+        content += `
           <td style="text-align:center">${object.quarry ? "<i class='fas fa-check' />" : ""}</td>
           <td style="text-align:center">${object.name}</td>
-          <td style="text-align:center">${object.move}</td>
-          <td style="text-align:center">${Math.floor(object.distance)}</td>
+          <td style='text-align:center'>${object.move}</td>
+          <td style="text-align:center">${object.distance}</td>
         </tr>`
+      } else {
+        content += `
+          <td style="text-align:center" colspan=3"><i><b>${object.name}</b></i></td>
+          <td style="text-align:center">${object.distance}</td>
+        </tr>`
+      }
     })
     content += `</table>`
     return content;
@@ -218,28 +228,28 @@ class SimplePursuit {
   renderCreatePursuitDialog() {
     let content = `<form>
       ${this.initialDialogHeader}
-      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+      <h2 style="${this.MAIN_STYLE}">
         <b>Choose Quarry and Initial Distance</b>
       </h2>
       <div class="form-group">
-        <span style="flex: 2;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit</span>
-        <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
-        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Initial Distance</span>
-        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Quarry</span>
+        <span style="flex: 2;${this.MAIN_STYLE}">In Pursuit</span>
+        <span style="flex: 4;${this.MAIN_STYLE}">Name</span>
+        <span style="flex: 1;${this.MAIN_STYLE}">Initial Distance</span>
+        <span style="flex: 1;${this.MAIN_STYLE}">Quarry</span>
       </div>`
     this.getCharacters().forEach(character => {
       content += `
         <div class="form-group">
-          <div style="flex: 2;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <div style="flex: 2;${this.MAIN_STYLE}">
             <input name="active" style="text-align: center" type="checkbox" ${character.active ? 'checked' : ''}>
           </div>
-          <span style="flex: 4;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 4;${this.MAIN_STYLE}">
             ${character.name}
           </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 1;${this.MAIN_STYLE}">
             <input name="distance" type="number" value="${character.distance}" min="0" step="1">
           </span>
-          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <div style="flex: 1;${this.MAIN_STYLE}">
             <input name="quarry" style="text-align: center" type="checkbox" ${character.quarry ? 'checked' : ''}>
           </div>
         </div>`
@@ -284,21 +294,22 @@ class SimplePursuit {
     const form = new FormDataExtended(html[0].querySelector("form")).object;
     for (let i = 0; i < characters.length; i++) {
       characters[i].active = form.active[i]
-      characters[i].distance = form.distance[i]
+      characters[i].distance = form.quarry[i] ? Math.max(form.distance[i], 1) : form.distance[i]
       characters[i].quarry = form.quarry[i]
     }
-    this.objectsInPursuit = this.sortObjects(this.objectsInPursuit.filter(o=>o.active))
+    this.objectsInPursuit = this.sortObjects(this.objectsInPursuit.filter(o => o.active))
   }
 
   renderNextTurnDialog() {
     let content = `
       <form>
         <div class="form-group">
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">In Pursuit?</span>
-          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Move</span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Test SLs</span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Distance</span>
+          <span style="flex: 1;${this.MAIN_STYLE}">In Pursuit?</span>
+          <span style="flex: 1;${this.MAIN_STYLE}">Quarry</span>
+          <span style="flex: 3;${this.MAIN_STYLE}">Name</span>
+          <span style="flex: 1;${this.MAIN_STYLE}">Move</span>
+          <span style="flex: 1;${this.MAIN_STYLE}">Test SLs</span>
+          <span style="flex: 1;${this.MAIN_STYLE}">Distance</span>
         </div>`
     this.getActive().forEach(character => {
       content += this.getNextTurnRow(character);
@@ -335,7 +346,10 @@ class SimplePursuit {
         addObstacle: {
           icon: "<i class='fas fa-mountains'></i>",
           label: "Add Obstacle",
-          callback: () => this.renderAddObstacle(),
+          callback: (html) => {
+            this.processNextTurnDialog(html)
+            this.renderAddObstacle(this.renderNextTurnDialog)
+          },
         },
         cancel: {
           icon: "<i class='fas fa-times'></i>",
@@ -351,33 +365,36 @@ class SimplePursuit {
     if (object.type === "character") {
       return `
         <div class="form-group"">
-          <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <div style="flex: 1;${this.MAIN_STYLE}">
             <input data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
           </div>
-          <span style="flex: 3;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
-            ${object.name}${object.quarry ? " (Q)" : ""}
+          <div style="flex: 1;${this.MAIN_STYLE}">
+            ${object.quarry ? "<i class='fa-solid fa-check'></i>" : ""}
+          </div>
+          <span style="flex: 3;${this.MAIN_STYLE}">
+            ${object.name}
           </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 1;${this.MAIN_STYLE}">
             ${this.getCharacterMove(object)}
           </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 1;${this.MAIN_STYLE}">
             <input data-character-id="${objectId}" name="SL" type="number" value="0" step="1">
           </span>
-          <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="flex: 1;${this.MAIN_STYLE}">
             <input data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
           </span>
         </div>`
     } else {
       return `
       <div class="form-group"">
-        <div style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+        <div style="flex: 1;${this.MAIN_STYLE}">
           <input data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
         </div>
-        <p style="flex: 5;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;" 
+        <p style="flex: 6;${this.MAIN_STYLE}" 
         title="Perceived: ${object.perceived}&#10;Test: ${object.navigate}&#10;Consequences: ${object.consequences}">
           ${object.name}
         </p>
-        <span style="flex: 1;text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+        <span style="flex: 1;${this.MAIN_STYLE}">
           <input data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
         </span>
       </div>`
@@ -397,11 +414,12 @@ class SimplePursuit {
         }
         form[input.dataset.characterId] = playerData
       })
+    console.log(form)
     for (const [key, value] of Object.entries(form)) {
       let character = this.objectsInPursuit[key]
       character.active = value.active
       character.distance = Number(value.distance)
-      character.distance += Number(value.SL)
+      character.distance += Number(value.SL ?? "0")
     }
 
     // Limit distance if pursuer run past query
@@ -415,30 +433,30 @@ class SimplePursuit {
   renderAddActorDialog(backFunc) {
     let content = `
       <form>
-        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+        <h2 style="${this.MAIN_STYLE}">
           <b>Insert Values or Select Actor's Token</b>
         </h2>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
+          <span style="${this.MAIN_STYLE}">Name</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="name" type="text">
           </span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Move</span>
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Run</span>
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Flee!</span>
+          <span style="${this.MAIN_STYLE}">Move</span>
+          <span style="${this.MAIN_STYLE}">Run</span>
+          <span style="${this.MAIN_STYLE}">Flee!</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="move" type="number" min="0" step="1">
           </span>
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="run" type="number" min="0" step="1">
           </span>
-          <div style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <div style="${this.MAIN_STYLE}">
             <input name="flee" type="checkbox">
           </div>
         </div>
@@ -448,7 +466,7 @@ class SimplePursuit {
       title: "Add Actor",
       content: content,
       buttons: {
-        yes: {
+        add: {
           icon: "<i class='fas fa-check'></i>",
           label: "Add",
           callback: (html) => {
@@ -461,10 +479,10 @@ class SimplePursuit {
         cancel: {
           icon: "<i class='fas fa-times'></i>",
           label: "Cancel",
-          callback: () => this.renderCreatePursuitDialog(),
+          callback: () => backFunc.call(this)
         }
       },
-      default: "yes"
+      default: "add"
     }, CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
   }
 
@@ -484,52 +502,55 @@ class SimplePursuit {
     }
   }
 
-  renderAddObstacle() {
+  renderAddObstacle(backFunc) {
     let content = `
       <form>
-        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+        <h2 style="${this.MAIN_STYLE}">
           <b>Create Obstacle</b>
         </h2>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Name</span>
+          <span style="${this.MAIN_STYLE}">Name</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="name" type="text">
           </span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Perceived Test</span>
+          <span style="${this.MAIN_STYLE}">Perceived Test</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="name" type="text">
           </span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Test to Navigate</span>
+          <span style="${this.MAIN_STYLE}">Test to Navigate</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="name" type="text">
           </span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">Consequences</span>
+          <span style="${this.MAIN_STYLE}">Consequences</span>
         </div>
         <div class="form-group">
-          <span style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+          <span style="${this.MAIN_STYLE}">
             <input name="name" type="text">
           </span>
         </div>
-        <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;">
+        <h2 style="${this.MAIN_STYLE}">
           <b>Select Obstacle From Presets</b>
         </h2>
         <div class="form-group">
           <select style="text-align: center" id="preset" name="preset">
             <option value="" selected></option>`
     for (const [key, value] of Object.entries(PRESET_OBSTACLES)) {
-      content += `<option value="${key}">${value.name}</option>`
+      content += `
+        <option value="${key}" title="Perceived: ${value.perceived}&#10;Test: ${value.navigate}&#10;Consequences: ${value.consequences}">
+          ${value.name}
+        </option>`
     }
     content += `
         </select>
@@ -544,13 +565,14 @@ class SimplePursuit {
           label: "Add",
           callback: (html) => {
             this.processAddObstacleDialog(html)
-            this.renderNextTurnDialog()
+            this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
+            backFunc.call(this)
           },
         },
         cancel: {
           icon: "<i class='fas fa-times'></i>",
           label: "Cancel",
-          callback: () => this.renderNextTurnDialog(),
+          callback: () => backFunc.call(this),
         }
       },
       default: "yes"
@@ -558,6 +580,7 @@ class SimplePursuit {
   }
 
   processAddObstacleDialog(html) {
+    const maxQueryDistance = this.getQuarry().reduce((a, b) => a.distance > b.distance ? a : b).distance
     const form = new FormDataExtended(html[0].querySelector("form")).object;
     if (form.preset) {
       const obstacle = PRESET_OBSTACLES[form.preset]
@@ -570,7 +593,7 @@ class SimplePursuit {
         move: 0,
         run: 0,
         type: "obstacle",
-        distance: 0,
+        distance: Math.max(maxQueryDistance - 1, 0),
         quarry: false
       })
     }
@@ -620,7 +643,7 @@ class SimplePursuit {
 class ComplexPursuit extends SimplePursuit {
   constructor() {
     super();
-    this.initialDialogHeader = `<h2 style="text-align:center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Environment</b></h2>
+    this.initialDialogHeader = `<h2 style="${this.MAIN_STYLE}"><b>Environment</b></h2>
       <div class="form-group flexcol">
         <select style="text-align: center" id="maxDistance" name="maxDistance">
           <option value="3">Busy city streets, labyrinthine sewers, hedge maze (3)</option>
@@ -630,12 +653,12 @@ class ComplexPursuit extends SimplePursuit {
           <option value="13">Featureless desert, grassy steppe, limestone pavement (13)</option>
         </select>
       </div>`
-    this.initialDialogFooter = `<h2 style="text-align:center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Escaping from combat</b></h2>
+    this.initialDialogFooter = `<h2 style="${this.MAIN_STYLE}"><b>Escaping from combat</b></h2>
       <h4><b>Advantage: </b>1 Distance, 3 Distance if spent 3 or more Advantage.</h4>
       <h4><b>Dodge: </b>1 Distance.</h4>
       <h4><b>Fleeing: </b>Free Pursuit Test, +2 SL if opponent attacks.</h4>`
     this.nextTurnFooter = `
-      <h2 style="text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps;"><b>Distance Update Rules</b></h2>
+      <h2 style="${this.MAIN_STYLE}"><b>Distance Update Rules</b></h2>
       <h4 style="text-align: center"><b>Roll Pursuit Test:</b></h4>
       <h4><b>4 SL or more: </b>Distance Moved = (Run / 10) + 1</h4>
       <h4><b>0 to 3 SL: </b>Distance Moved = (Run / 10)</h4>
