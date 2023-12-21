@@ -17,7 +17,7 @@ const PRESET_OBSTACLES = {
     name: `Haystack`,
     perceived: `Automatically`,
     navigate: `Hard (-20) Climb Test`,
-    consequences: `Gain Entangled with S of 2d10+20`
+    consequences: `Gain Entangled (S 2D10+20) Condition`
   },
   puddle: {
     name: `Filthy Puddle`,
@@ -43,10 +43,49 @@ const PRESET_OBSTACLES = {
     navigate: `Easy (+40) Athletics Test if perceived, Hard (-20) Athletics Test if not`,
     consequences: `Gain Twisted Ankle Critical Injury`
   },
+  quicksand: {
+    name: "Quicksand",
+    perceived: `Challenging (+0) Perception Test`,
+    navigate: `Easy (+40) Athletics Test if perceived, Hard (-20) Athletics Test if not`,
+    consequences: `Gain Entangled (S 2D10+20) Condition, each Round S increase by D10, after 6 Rounds pass Challenging (+0) Cool Test or start Drowning`
+  },
+  goat_herd: {
+    name: "Passing Goat Herd",
+    perceived: `Automatically`,
+    navigate: `Hard (-20) Athletics Test`,
+    consequences: `Weapon (Horns) +6 hit`
+  },
+  fish_guts_bucket: {
+    name: "Bucket full of Fish Guts",
+    perceived: `Automatically`,
+    navigate: `Easy (+40) Athletics Test`,
+    consequences: `Gain Prone Condition`
+  },
+  fish_guts_slick: {
+    name: "Slick of Fish Guts",
+    perceived: `Automatically`,
+    navigate: `Hard (-20) Athletics Test`,
+    consequences: `Gain Prone Condition, -2 SL to all Fellowship Tests until they clean themselves, test for Festering Wounds if they have untreated wounds`
+  },
+  rotten_Floorboards: {
+    name: "Rotten Floorboards",
+    perceived: `Hard (-20) Perception Test`,
+    navigate: `Average (+20) Athletics Test if perceived, Very Hard (-30) Athletics Test if not`,
+    consequences: `Fall from 3 yds`
+  },
+  workman: {
+    name: "Workman on Ladder",
+    perceived: `Automatically`,
+    navigate: `Easy (+40) Athletics Test`,
+    consequences: `Gain Prone Condition, workman must pass Hard (-20) Athletics Test or fall D10 yds`
+  },
+  cart: {
+    name: "Unattended Cart",
+    perceived: `Automatically`,
+    navigate: `Average (+20) Climb Test`,
+    consequences: `Lose Round`
+  },
 }
-
-// Main code
-main()
 
 class SimplePursuit {
   MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
@@ -102,12 +141,17 @@ class SimplePursuit {
       run: actor.system.details.move.run,
       type: "character",
       distance: 0,
+      testSL: 0,
       quarry: false
     }
   }
 
   getCharacterMove(character) {
     return `${character.move}`
+  }
+
+  getDistanceFromSL(SL) {
+    return SL
   }
 
   //-------------//
@@ -262,10 +306,10 @@ class SimplePursuit {
         yes: {
           icon: "<i class='fas fa-check'></i>",
           label: "Start",
-          callback: (html) => {
+          callback: async (html) => {
             this.processCreatePursuitDialog(html)
             if (this.getQuarry().length) {
-              this.nextTurn()
+              await this.nextTurn()
             }
           },
         },
@@ -294,7 +338,7 @@ class SimplePursuit {
       characters[i].distance = form.quarry[i] ? Math.max(form.distance[i], 1) : form.distance[i]
       characters[i].quarry = form.quarry[i]
     }
-    this.objectsInPursuit = this.sortObjects(this.objectsInPursuit.filter(o => o.active))
+    this.objectsInPursuit = this.objectsInPursuit.filter(o => o.active)
   }
 
   renderNextTurnDialog() {
@@ -321,21 +365,21 @@ class SimplePursuit {
     content += `</form>${this.nextTurnFooter}`
 
     new Dialog({
-      title: `Pursuit - Turn ${this.turn}`,
+      title: `Pursuit: Turn ${this.turn}`,
       content: content,
       buttons: {
         nextTurn: {
           icon: "<i class='fas fa-check'></i>",
           label: "Next Turn",
-          callback: (html) => {
+          callback: async (html) => {
             this.processNextTurnDialog(html)
-            this.nextTurn()
+            await this.nextTurn()
           },
         },
         addActor: {
           icon: "<i class='fas fa-person'></i>",
           label: "Add Actor",
-          callback: (html) => {
+          callback: async (html) => {
             this.processNextTurnDialog(html)
             this.renderAddActorDialog(this.renderNextTurnDialog)
           },
@@ -363,7 +407,7 @@ class SimplePursuit {
       return `
         <div class="form-group"">
           <div style="flex: 1;${this.MAIN_STYLE}">
-            <input data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
+            <input tabindex="-1" data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
           </div>
           <div style="flex: 1;${this.MAIN_STYLE}">
             ${object.quarry ? "<i class='fa-solid fa-check'></i>" : ""}
@@ -375,24 +419,24 @@ class SimplePursuit {
             ${this.getCharacterMove(object)}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
-            <input data-character-id="${objectId}" name="SL" type="number" value="0" step="1">
+            <input data-character-id="${objectId}" name="SL" type="number" value="${object.testSL}" step="1">
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
-            <input data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
+            <input tabindex="-1" data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
           </span>
         </div>`
     } else {
       return `
       <div class="form-group"">
         <div style="flex: 1;${this.MAIN_STYLE}">
-          <input data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
+          <input tabindex="-1" data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
         </div>
         <p style="flex: 6;${this.MAIN_STYLE}" 
         title="Perceived: ${object.perceived}&#10;Test: ${object.navigate}&#10;Consequences: ${object.consequences}">
           ${object.name}
         </p>
         <span style="flex: 1;${this.MAIN_STYLE}">
-          <input data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
+          <input tabindex="-1" data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
         </span>
       </div>`
     }
@@ -416,7 +460,7 @@ class SimplePursuit {
       let character = this.objectsInPursuit[key]
       character.active = value.active
       character.distance = Number(value.distance)
-      character.distance += Number(value.SL ?? "0")
+      character.testSL = Number(value.SL ?? "0")
     }
 
     // Limit distance if pursuer run past query
@@ -424,7 +468,6 @@ class SimplePursuit {
     for (let pursuer of this.getPursuers()) {
       pursuer.distance = pursuer.distance > maxQueryDistance ? maxQueryDistance : pursuer.distance
     }
-    this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
   }
 
   renderAddActorDialog(backFunc) {
@@ -590,7 +633,7 @@ class SimplePursuit {
         move: 0,
         run: 0,
         type: "obstacle",
-        distance: Math.max(maxQueryDistance - 1, 0),
+        distance: maxQueryDistance,
         quarry: false
       })
     }
@@ -598,15 +641,18 @@ class SimplePursuit {
 
   //-------------//
 
-  nextTurn() {
+  async nextTurn() {
     this.turn += 1
 
-    const lostCharactersMsg = this.getChatLostCharacters();
-    const escapesMsg = this.getChatEscapes();
+    await this.calculateDistanceMoved()
+    this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
+
+    const lostCharactersMsg = this.getChatLostCharacters()
+    const escapesMsg = this.getChatEscapes()
     this.normaliseDistance()
 
     // Create chat message
-    let content = `<h1 style="text-align: center">Pursuit - Turn ${this.turn}</h1>`
+    let content = `<h1 style="text-align: center">Pursuit: Turn ${this.turn}</h1>`
     content += this.getChatTable()
     content += lostCharactersMsg
     content += escapesMsg
@@ -627,6 +673,34 @@ class SimplePursuit {
     if (this.POST_TO_CHAT) ChatMessage.create({content: content}, false);
   }
 
+  async calculateDistanceMoved() {
+    let characters = this.getCharacters()
+    for (let character of characters) {
+      character.distanceMoved = this.getDistanceFromSL(character.testSL)
+      character.distance += character.distanceMoved
+      character.testSL = 0
+    }
+    for (let pursuer of this.getPursuers()) {
+      for (let quarry of this.getQuarry()) {
+        if (pursuer.distance > quarry.distance && (pursuer.distance - pursuer.distanceMoved) <= (quarry.distance - quarry.distanceMoved)) {
+          const result = await PursuitDialogHelper.createYesNoDialog({
+            title: `${pursuer.name} can caught ${quarry.name}`,
+            content: `${pursuer.name} can caught ${quarry.name}. Do you want to charge into combat, or run past and continue pursuit?`,
+            yes: {
+              label: "Charge into Combat"
+            },
+            no: {
+              label: "Continue Pursuit"
+            }
+          })
+          if (result) {
+            pursuer.distance = quarry.distance
+          }
+        }
+      }
+    }
+  }
+
   normaliseDistance() {
     const characters = this.getCharacters()
     let minDistance = characters.reduce((a, b) => a.distance < b.distance ? a : b).distance
@@ -634,7 +708,6 @@ class SimplePursuit {
       characters[i].distance -= minDistance
     }
   }
-
 }
 
 class ComplexPursuit extends SimplePursuit {
@@ -703,23 +776,48 @@ class ComplexPursuit extends SimplePursuit {
   }
 }
 
-function main() {
-  new Dialog({
-    title: "Choose Pursuit Mode",
-    content: `
-      <div class="delete-item-dialog selection">
-        <label>Choose in which mode you want to run this tool.</label> 
-      </div>`,
-    buttons: {
-      simple: {
-        label: "Simple (Core)",
-        callback: () => new SimplePursuit().renderCreatePursuitDialog()
-      },
-      complex: {
-        label: "Complex (UiA)",
-        callback: () => new ComplexPursuit().renderCreatePursuitDialog()
-      },
-    },
-    default: "complex"
-  }).render(true);
+class PursuitDialogHelper extends Dialog {
+  static async createYesNoDialog({
+                                   title,
+                                   content,
+                                   yesLabel = "Yes",
+                                   yesCallback = (html) => true,
+                                   noLabel = "No",
+                                   noCallback = (html) => false,
+                                   options = {}
+                                 }) {
+    return this.wait({
+      title,
+      content: `
+        <div class="delete-item-dialog selection">
+          <label>${content}</label>
+        </div>`,
+      focus: true,
+      default: "yes",
+      buttons: {
+        yes: {
+          label: yesLabel,
+          callback: html => yesCallback(html)
+        },
+        no: {
+          label: noLabel,
+          callback: html => noCallback(html)
+        }
+      }
+    }, options);
+  }
 }
+
+function main() {
+  PursuitDialogHelper.createYesNoDialog({
+    title: "Choose Pursuit Mode",
+    content: "Choose in which mode you want to run this tool.",
+    yesLabel: "Simple (Core)",
+    yesCallback: () => new SimplePursuit().renderCreatePursuitDialog(),
+    noLabel: "Complex (UiA)",
+    noCallback: () => new ComplexPursuit().renderCreatePursuitDialog()
+  })
+}
+
+// Main code
+main()
