@@ -10,79 +10,83 @@ const PRESET_OBSTACLES = {
   large_log: {
     name: `Large Log`,
     perceived: `Automatically`,
-    navigate: `Average (+20) Athletics Test`,
+    navigatePerceived: `Average (+20) Athletics Test`,
     consequences: `Gain Prone Condition`
   },
   haystack: {
     name: `Haystack`,
     perceived: `Automatically`,
-    navigate: `Hard (-20) Climb Test`,
+    navigatePerceived: `Hard (-20) Climb Test`,
     consequences: `Gain Entangled (S 2D10+20) Condition`
   },
   puddle: {
     name: `Filthy Puddle`,
     perceived: `Average (+20) Perception Test`,
-    navigate: `Average (+20) Athletics Test if perceived, Hard (-20) Athletics Test if not`,
+    navigatePerceived: `Average (+20) Athletics Test`,
+    navigateNotPerceived: `Hard (-20) Athletics Test`,
     consequences: `-2 SL to all Fellowship Tests until they clean themselves`
   },
   crates: {
     name: `Crates of Merchandise`,
     perceived: `Automatically`,
-    navigate: `Challenging (+0) Athletics Test`,
+    navigatePerceived: `Challenging (+0) Athletics Test`,
     consequences: `Gain Prone Condition, 2d10 pieces of merchandise are broken`
   },
   gate: {
     name: `Closed Gate`,
     perceived: `Automatically`,
-    navigate: `Hard (-20) Climb Test`,
+    navigatePerceived: `Hard (-20) Climb Test`,
     consequences: `Cannot move; fall 2 yds on Impressive Failure (-6 SL)`
   },
   pothole: {
     name: `Pothole`,
     perceived: `Challenging (+0) Perception Test`,
-    navigate: `Easy (+40) Athletics Test if perceived, Hard (-20) Athletics Test if not`,
+    navigatePerceived: `Easy (+40) Athletics Test`,
+    navigateNotPerceived: `Hard (-20) Athletics Test`,
     consequences: `Gain Twisted Ankle Critical Injury`
   },
   quicksand: {
     name: "Quicksand",
     perceived: `Challenging (+0) Perception Test`,
-    navigate: `Easy (+40) Athletics Test if perceived, Hard (-20) Athletics Test if not`,
+    navigatePerceived: `Easy (+40) Athletics Test`,
+    navigateNotPerceived: `Hard (-20) Athletics Test`,
     consequences: `Gain Entangled (S 2D10+20) Condition, each Round S increase by D10, after 6 Rounds pass Challenging (+0) Cool Test or start Drowning`
   },
   goat_herd: {
     name: "Passing Goat Herd",
     perceived: `Automatically`,
-    navigate: `Hard (-20) Athletics Test`,
+    navigatePerceived: `Hard (-20) Athletics Test`,
     consequences: `Weapon (Horns) +6 hit`
   },
   fish_guts_bucket: {
     name: "Bucket full of Fish Guts",
     perceived: `Automatically`,
-    navigate: `Easy (+40) Athletics Test`,
+    navigatePerceived: `Easy (+40) Athletics Test`,
     consequences: `Gain Prone Condition`
   },
   fish_guts_slick: {
     name: "Slick of Fish Guts",
     perceived: `Automatically`,
-    navigate: `Hard (-20) Athletics Test`,
+    navigatePerceived: `Hard (-20) Athletics Test`,
     consequences: `Gain Prone Condition, -2 SL to all Fellowship Tests until they clean themselves, test for Festering Wounds if they have untreated wounds`
   },
   rotten_Floorboards: {
     name: "Rotten Floorboards",
     perceived: `Hard (-20) Perception Test`,
-    navigate: `Average (+20) Athletics Test if perceived, Very Hard (-30) Athletics Test if not`,
+    navigatePerceived: `Average (+20) Athletics Test`,
+    navigateNotPerceived: `Very Hard (-30) Athletics Test`,
     consequences: `Fall from 3 yds`
   },
   workman: {
     name: "Workman on Ladder",
     perceived: `Automatically`,
-    navigate: `Easy (+40) Athletics Test`,
+    navigatePerceived: `Easy (+40) Athletics Test`,
     consequences: `Gain Prone Condition, workman must pass Hard (-20) Athletics Test or fall D10 yds`
   },
   cart: {
     name: "Unattended Cart",
     perceived: `Automatically`,
-    navigate: `Average (+20) Climb Test`,
+    navigatePerceived: `Average (+20) Climb Test`,
     consequences: `Lose Round`
   },
 }
@@ -91,7 +95,7 @@ class SimplePursuit {
   MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
   NEXT_TURN_DIALOG_OPTIONS = {width: 650};
   CREATE_PURSUIT_DIALOG_OPTIONS = {width: 500};
-  POST_TO_CHAT = true;
+  POST_TO_CHAT = false;
 
   constructor() {
     this.objectsInPursuit = this.initObjectList();
@@ -135,6 +139,7 @@ class SimplePursuit {
 
   getPursuitObjectFromActor(actor) {
     return {
+      actor: actor,
       active: true,
       name: actor.name,
       move: actor.system.details.move.value,
@@ -220,18 +225,6 @@ class SimplePursuit {
     return lostSightText
   }
 
-  getChatCatchEvents() {
-    let events = ""
-    this.getQuarry().forEach(quarry => {
-      this.getPursuers().forEach(pursuer => {
-        if (quarry.distance === pursuer.distance) {
-          events += `<h4><b>${pursuer.name}</b> can catch <b>${quarry.name}</b>.</h4>`
-        }
-      })
-    })
-    return events
-  }
-
   getChatPursuitTests() {
     const characters = this.getCharacters()
     const slowestCharacter = characters.reduce((a, b) => a.move < b.move ? a : b).move
@@ -285,7 +278,7 @@ class SimplePursuit {
             <input name="active" style="text-align: center" type="checkbox" ${character.active ? 'checked' : ''}>
           </div>
           <span style="flex: 4;${this.MAIN_STYLE}">
-            ${character.name}
+            ${!!character.actor ? "<i class='fas fa-user'></i> " : ""}${character.name}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
             <input name="distance" type="number" value="${character.distance}" min="0" step="1">
@@ -314,7 +307,7 @@ class SimplePursuit {
           },
         },
         addActor: {
-          icon: "<i class='fas fa-person'></i>",
+          icon: "<i class='fas fa-user'></i>",
           label: "Add Actor",
           callback: (html) => {
             this.processCreatePursuitDialog(html)
@@ -352,13 +345,13 @@ class SimplePursuit {
           <span style="flex: 1;${this.MAIN_STYLE}">Test SLs</span>
           <span style="flex: 1;${this.MAIN_STYLE}">Distance</span>
         </div>`
-    this.getActive().forEach(character => {
+    this.getActive().forEach((character) => {
       content += this.getNextTurnRow(character);
     })
     const inactiveObjects = this.getInactive()
     if (inactiveObjects.length) {
       content += `<p style="text-align: center;font-variant: small-caps;font-weight: bold;">Inactive</p>`
-      inactiveObjects.forEach(character => {
+      inactiveObjects.forEach((character) => {
         content += this.getNextTurnRow(character);
       })
     }
@@ -377,7 +370,7 @@ class SimplePursuit {
           },
         },
         addActor: {
-          icon: "<i class='fas fa-person'></i>",
+          icon: "<i class='fas fa-user'></i>",
           label: "Add Actor",
           callback: async (html) => {
             this.processNextTurnDialog(html)
@@ -402,65 +395,54 @@ class SimplePursuit {
   }
 
   getNextTurnRow(object) {
-    const objectId = this.objectsInPursuit.indexOf(object)
     if (object.type === "character") {
       return `
         <div class="form-group"">
           <div style="flex: 1;${this.MAIN_STYLE}">
-            <input tabindex="-1" data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
+            <input tabindex="-1" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
           </div>
           <div style="flex: 1;${this.MAIN_STYLE}">
             ${object.quarry ? "<i class='fa-solid fa-check'></i>" : ""}
           </div>
           <span style="flex: 3;${this.MAIN_STYLE}">
-            ${object.name}
+            ${!!object.actor ? "<i class='fas fa-user'></i> " : ""}${object.name}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
             ${this.getCharacterMove(object)}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
-            <input data-character-id="${objectId}" name="SL" type="number" value="${object.testSL}" step="1">
+            <input name="SL" type="number" value="${object.testSL}" step="1">
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
-            <input tabindex="-1" data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
+            <input tabindex="-1" name="distance" type="number" value="${object.distance}" min="0" step="1">
           </span>
         </div>`
     } else {
       return `
       <div class="form-group"">
         <div style="flex: 1;${this.MAIN_STYLE}">
-          <input tabindex="-1" data-character-id="${objectId}" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
+          <input tabindex="-1" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
         </div>
         <p style="flex: 6;${this.MAIN_STYLE}" 
-        title="Perceived: ${object.perceived}&#10;Test: ${object.navigate}&#10;Consequences: ${object.consequences}">
+        title="Perceived: ${object.perceived}&#10;Test: ${[object.navigatePerceived, object.navigateNotPerceived].join("/")}&#10;Consequences: ${object.consequences}">
           ${object.name}
         </p>
+        <input name="SL" type="hidden" value="${object.testSL}" step="1">
         <span style="flex: 1;${this.MAIN_STYLE}">
-          <input tabindex="-1" data-character-id="${objectId}" name="distance" type="number" value="${object.distance}" min="0" step="1">
+          <input tabindex="-1" name="distance" type="number" value="${object.distance}" min="0" step="1">
         </span>
       </div>`
     }
   }
 
   processNextTurnDialog(html) {
-    let form = {}
-    $(html).find("input")
-      .get()
-      .forEach((input) => {
-        let playerData = form[input.dataset.characterId] ?? {}
-        if (input.type === "checkbox") {
-          playerData[input.name] = input.checked
-        } else {
-          playerData[input.name] = input.value
-        }
-        form[input.dataset.characterId] = playerData
-      })
-    console.log(form)
-    for (const [key, value] of Object.entries(form)) {
-      let character = this.objectsInPursuit[key]
-      character.active = value.active
-      character.distance = Number(value.distance)
-      character.testSL = Number(value.SL ?? "0")
+    const form = new FormDataExtended(html[0].querySelector("form")).object
+    const active = this.getActive()
+    for (let i=0;i<active.length;i++) {
+      let object = active[i]
+      object.active = form.active[i]
+      object.distance = Number(form.distance[i])
+      object.testSL = Number(form.SL[i])
     }
 
     // Limit distance if pursuer run past query
@@ -510,8 +492,7 @@ class SimplePursuit {
           icon: "<i class='fas fa-check'></i>",
           label: "Add",
           callback: (html) => {
-            const form = new FormDataExtended(html[0].querySelector("form")).object;
-            this.processAddActorDialog(form);
+            this.processAddActorDialog(html);
             this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
             backFunc.call(this)
           },
@@ -526,7 +507,8 @@ class SimplePursuit {
     }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
   }
 
-  processAddActorDialog(form) {
+  processAddActorDialog(html) {
+    const form = new FormDataExtended(html[0].querySelector("form")).object;
     if (form.name !== '' && form.move !== null && form.run !== null) {
       this.objectsInPursuit.push({
         active: true,
@@ -534,6 +516,7 @@ class SimplePursuit {
         move: form.move,
         run: form.run,
         type: "character",
+        testSL: 0,
         distance: 0,
         quarry: false
       })
@@ -620,7 +603,6 @@ class SimplePursuit {
   }
 
   processAddObstacleDialog(html) {
-    const maxQueryDistance = this.getQuarry().reduce((a, b) => a.distance > b.distance ? a : b).distance
     const form = new FormDataExtended(html[0].querySelector("form")).object;
     if (form.preset) {
       const obstacle = PRESET_OBSTACLES[form.preset]
@@ -633,7 +615,8 @@ class SimplePursuit {
         move: 0,
         run: 0,
         type: "obstacle",
-        distance: maxQueryDistance,
+        testSL: 0,
+        distance: this.getQuarry().reduce((a, b) => a.distance > b.distance ? a : b).distance,
         quarry: false
       })
     }
@@ -657,16 +640,9 @@ class SimplePursuit {
     content += lostCharactersMsg
     content += escapesMsg
 
-    // Create events
-    let events = this.getChatCatchEvents();
-    if (events !== "") {
-      content += "<h2 style='text-align: center'>Events</h2>"
-      content += events
-    }
-
     // Check end
     if (this.getQuarry().length !== 0 && this.getPursuers().length !== 0) {
-      content += "<h2 style='text-align: center'>Roll Pursuit Tests</h2>"
+      content += "<h2 style='text-align: center'>Pursuit Tests</h2>"
       content += this.getChatPursuitTests();
       this.renderNextTurnDialog();
     }
@@ -680,20 +656,26 @@ class SimplePursuit {
       character.distance += character.distanceMoved
       character.testSL = 0
     }
+
+    let maxQuarryDistance = this.getQuarry().reduce((a, b) => a.distance > b.distance ? a : b).distance
     for (let pursuer of this.getPursuers()) {
       for (let quarry of this.getQuarry()) {
         if (pursuer.distance > quarry.distance && (pursuer.distance - pursuer.distanceMoved) <= (quarry.distance - quarry.distanceMoved)) {
-          const result = await PursuitDialogHelper.createYesNoDialog({
+          if (maxQuarryDistance === quarry.distance || await PursuitDialogHelper.createPursuitDialog({
             title: `${pursuer.name} can caught ${quarry.name}`,
-            content: `${pursuer.name} can caught ${quarry.name}. Do you want to charge into combat, or run past and continue pursuit?`,
-            yes: {
-              label: "Charge into Combat"
+            content: `Do you want to charge into combat, or run past and pursue another quarry?`,
+            buttons: {
+              yes: {
+                label: "Charge into Combat",
+                callback: () => true
+              },
+              no: {
+                label: "Continue Pursuit",
+                callback: () => false
+              }
             },
-            no: {
-              label: "Continue Pursuit"
-            }
-          })
-          if (result) {
+            defaultButton: "yes"
+          })) {
             pursuer.distance = quarry.distance
           }
         }
@@ -777,15 +759,13 @@ class ComplexPursuit extends SimplePursuit {
 }
 
 class PursuitDialogHelper extends Dialog {
-  static async createYesNoDialog({
-                                   title,
-                                   content,
-                                   yesLabel = "Yes",
-                                   yesCallback = (html) => true,
-                                   noLabel = "No",
-                                   noCallback = (html) => false,
-                                   options = {}
-                                 }) {
+  static async createPursuitDialog({
+                                     title,
+                                     content,
+                                     buttons,
+                                     defaultButton,
+                                     options = {}
+                                   }) {
     return this.wait({
       title,
       content: `
@@ -793,31 +773,25 @@ class PursuitDialogHelper extends Dialog {
           <label>${content}</label>
         </div>`,
       focus: true,
-      default: "yes",
-      buttons: {
-        yes: {
-          label: yesLabel,
-          callback: html => yesCallback(html)
-        },
-        no: {
-          label: noLabel,
-          callback: html => noCallback(html)
-        }
-      }
+      default: defaultButton,
+      buttons: buttons,
     }, options);
   }
 }
 
-function main() {
-  PursuitDialogHelper.createYesNoDialog({
-    title: "Choose Pursuit Mode",
-    content: "Choose in which mode you want to run this tool.",
-    yesLabel: "Simple (Core)",
-    yesCallback: () => new SimplePursuit().renderCreatePursuitDialog(),
-    noLabel: "Complex (UiA)",
-    noCallback: () => new ComplexPursuit().renderCreatePursuitDialog()
-  })
-}
-
 // Main code
-main()
+PursuitDialogHelper.createPursuitDialog({
+  title: "Choose Pursuit Mode",
+  content: "Choose in which mode you want to run this tool.",
+  buttons: {
+    yes: {
+      label: "Simple (Core)",
+      callback: () => new SimplePursuit().renderCreatePursuitDialog()
+    },
+    no: {
+      label: "Complex (UiA)",
+      callback: () => new ComplexPursuit().renderCreatePursuitDialog()
+    },
+  },
+  defaultButton: "yes"
+})
