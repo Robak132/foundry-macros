@@ -95,7 +95,7 @@ class SimplePursuit {
   MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
   NEXT_TURN_DIALOG_OPTIONS = {width: 650};
   CREATE_PURSUIT_DIALOG_OPTIONS = {width: 500};
-  POST_TO_CHAT = false;
+  POST_TO_CHAT = true;
 
   constructor() {
     this.objectsInPursuit = this.initObjectList();
@@ -189,40 +189,58 @@ class SimplePursuit {
     return content;
   }
 
-  getChatEscapes() {
-    const maxPursuerDistance = this.getPursuers().reduce((a, b) => a.distance > b.distance ? a : b).distance
-
-    let content = ''
-    this.getQuarry().forEach(character => {
-      const distanceRemaining = this.maxDistance - character.distance + maxPursuerDistance
-      if (distanceRemaining > 0) {
-        content += `<h4><b>${character.name}</b> needs ${distanceRemaining} Distance to escape.</h4>`
-      } else {
-        character.active = false
-        character.distance = 0
-        content += `<h4><b>${character.name}</b> escapes.</h4>`
-      }
-    })
-    return content
-  }
-
   getChatLostCharacters() {
-    const characters = this.getCharacters()
-    let isLost = false
-    let lostSightText = ""
+    const quarry = this.getQuarry()
+    const pursuers = this.getPursuers()
 
-    for (let i = characters.length - 1; i > 0; i--) {
-      if (characters[i].distance - characters[i - 1].distance >= this.maxDistance) {
-        isLost = true
+    let messages = ""
+    let characterDistance = []
+    for (let i = 0; i < quarry.length; i++) {
+      let row = []
+      let lastDistance = quarry[i].distance
+      let isLost = false
+
+      for (let j = pursuers.length - 1; j >= 0; j--) {
+        debugRow.push(lastDistance - pursuers[j].distance)
+        if (lastDistance - pursuers[j].distance < 0) {
+          row.push(false)
+        } else if (isLost || lastDistance - pursuers[j].distance >= this.maxDistance) {
+          row.push(false)
+          isLost = true
+        } else {
+          row.push(true)
+        }
+        lastDistance = pursuers[j].distance
       }
-      if (isLost) {
-        characters[i - 1].active = false
-        characters[i - 1].distance = 0
-        lostSightText += `<h4><b>${characters[i - 1].name}</b> lost sight with rest of Pursuit.</h4>`
+      characterDistance.push(row.reverse())
+    }
+
+    // Escapes
+    for (let i = 0; i < quarry.length; i++) {
+      if (!characterDistance[i][characterDistance[i].length - 1]) {
+        quarry[i].distance = 0
+        quarry[i].active = false
+        messages += `<h4><b>${quarry[i].name}</b> escapes.</h4>`
       }
     }
 
-    return lostSightText
+    // Lost track
+    for (let i = 0; i < pursuers.length; i++) {
+      let isLost = true;
+      for (let j = 0; j < quarry.length; j++) {
+        if (characterDistance[j][i]) {
+          isLost = false
+          break
+        }
+      }
+      if (isLost) {
+        pursuers[i].distance = 0
+        pursuers[i].active = false
+        messages += `<h4><b>${pursuers[i].name}</b> lost sight with rest of Pursuit.</h4>`
+      }
+    }
+
+    return messages
   }
 
   getChatPursuitTests() {
@@ -438,7 +456,7 @@ class SimplePursuit {
   processNextTurnDialog(html) {
     const form = new FormDataExtended(html[0].querySelector("form")).object
     const active = this.getActive()
-    for (let i=0;i<active.length;i++) {
+    for (let i = 0; i < active.length; i++) {
       let object = active[i]
       object.active = form.active[i]
       object.distance = Number(form.distance[i])
@@ -631,14 +649,12 @@ class SimplePursuit {
     this.objectsInPursuit = this.sortObjects(this.objectsInPursuit)
 
     const lostCharactersMsg = this.getChatLostCharacters()
-    const escapesMsg = this.getChatEscapes()
     this.normaliseDistance()
 
     // Create chat message
     let content = `<h1 style="text-align: center">Pursuit: Turn ${this.turn}</h1>`
     content += this.getChatTable()
     content += lostCharactersMsg
-    content += escapesMsg
 
     // Check end
     if (this.getQuarry().length !== 0 && this.getPursuers().length !== 0) {
