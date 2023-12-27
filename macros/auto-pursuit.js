@@ -93,8 +93,7 @@ const PRESET_OBSTACLES = {
 
 class SimplePursuit {
   MAIN_STYLE = "text-align: center;font-family: CaslonPro;font-weight: 600;font-variant: small-caps"
-  NEXT_TURN_DIALOG_OPTIONS = {width: 650};
-  CREATE_PURSUIT_DIALOG_OPTIONS = {width: 500};
+  DIALOG_WIDTH = 500
   POST_TO_CHAT = true;
 
   constructor() {
@@ -159,6 +158,14 @@ class SimplePursuit {
     return SL
   }
 
+  getObstacleNavigateTest(object) {
+    if (object.navigateNotPerceived != null) {
+      return object.navigatePerceived + "/" + object.navigateNotPerceived
+    } else {
+      return object.navigatePerceived;
+    }
+  }
+
   //-------------//
 
   getChatTable() {
@@ -180,7 +187,7 @@ class SimplePursuit {
         </tr>`
       } else {
         content += `
-          <td style="text-align:center" colspan=3"><i><b>${object.name}</b></i></td>
+          <td style="text-align:center" colspan=3"><i><b>${object.perceived === "Automatically" ? object.name : "Unknown Obstacle"}</b></i></td>
           <td style="text-align:center">${object.distance}</td>
         </tr>`
       }
@@ -195,32 +202,41 @@ class SimplePursuit {
 
     let messages = ""
     let characterDistance = []
+    let debugCharacterDistance = []
     for (let i = 0; i < quarry.length; i++) {
       let row = []
+      let debugRow = []
       let lastDistance = quarry[i].distance
       let isLost = false
 
       for (let j = pursuers.length - 1; j >= 0; j--) {
         debugRow.push(lastDistance - pursuers[j].distance)
         if (lastDistance - pursuers[j].distance < 0) {
-          row.push(false)
+          row.push(-1)
         } else if (isLost || lastDistance - pursuers[j].distance >= this.maxDistance) {
-          row.push(false)
+          row.push(0)
           isLost = true
+          lastDistance = pursuers[j].distance
         } else {
-          row.push(true)
+          row.push(1)
+          lastDistance = pursuers[j].distance
         }
-        lastDistance = pursuers[j].distance
       }
       characterDistance.push(row.reverse())
+      debugCharacterDistance.push(debugRow.reverse())
     }
 
     // Escapes
     for (let i = 0; i < quarry.length; i++) {
-      if (!characterDistance[i][characterDistance[i].length - 1]) {
-        quarry[i].distance = 0
-        quarry[i].active = false
-        messages += `<h4><b>${quarry[i].name}</b> escapes.</h4>`
+      for (let j = 0; j < pursuers.length; j++) {
+        if (characterDistance[i][j] === 1) {
+          break
+        } else if (characterDistance[i][j] === -1) {
+          quarry[i].distance = 0
+          quarry[i].active = false
+          messages += `<h4><b>${quarry[i].name}</b> escapes.</h4>`
+          break
+        }
       }
     }
 
@@ -228,7 +244,7 @@ class SimplePursuit {
     for (let i = 0; i < pursuers.length; i++) {
       let isLost = true;
       for (let j = 0; j < quarry.length; j++) {
-        if (characterDistance[j][i]) {
+        if (characterDistance[j][i] !== 0) {
           isLost = false
           break
         }
@@ -338,7 +354,7 @@ class SimplePursuit {
         }
       },
       default: "yes"
-    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, {width: this.DIALOG_WIDTH}).render(true);
   }
 
   processCreatePursuitDialog(html) {
@@ -409,7 +425,7 @@ class SimplePursuit {
         }
       },
       default: "nextTurn"
-    }, this.NEXT_TURN_DIALOG_OPTIONS).render(true);
+    }, {width: this.DIALOG_WIDTH + 150}).render(true);
   }
 
   getNextTurnRow(object) {
@@ -442,7 +458,7 @@ class SimplePursuit {
           <input tabindex="-1" name="active" type="checkbox" ${object.active ? 'checked' : ''}>
         </div>
         <p style="flex: 6;${this.MAIN_STYLE}" 
-        title="Perceived: ${object.perceived}&#10;Test: ${[object.navigatePerceived, object.navigateNotPerceived].join("/")}&#10;Consequences: ${object.consequences}">
+        title="Perceived: ${object.perceived}&#10;Test: ${this.getObstacleNavigateTest(object)}&#10;Consequences: ${object.consequences}">
           ${object.name}
         </p>
         <input name="SL" type="hidden" value="${object.testSL}" step="1">
@@ -522,7 +538,7 @@ class SimplePursuit {
         }
       },
       default: "add"
-    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, {width: this.DIALOG_WIDTH}).render(true);
   }
 
   processAddActorDialog(html) {
@@ -538,8 +554,10 @@ class SimplePursuit {
         distance: 0,
         quarry: false
       })
-    } else {
+    } else if (canvas.tokens.controlled.length > 0) {
       canvas.tokens.controlled.forEach(t => this.objectsInPursuit.push(this.getPursuitObjectFromActor(t.actor)))
+    } else {
+      return ui.notifications.error("Insert correct values or select Actor's Token")
     }
   }
 
@@ -589,7 +607,7 @@ class SimplePursuit {
             <option value="" selected></option>`
     for (const [key, value] of Object.entries(PRESET_OBSTACLES)) {
       content += `
-        <option value="${key}" title="Perceived: ${value.perceived}&#10;Test: ${value.navigate}&#10;Consequences: ${value.consequences}">
+        <option value="${key}" title="Perceived: ${value.perceived}&#10;Test: ${this.getObstacleNavigateTest(value)}&#10;Consequences: ${value.consequences}">
           ${value.name}
         </option>`
     }
@@ -617,7 +635,7 @@ class SimplePursuit {
         }
       },
       default: "yes"
-    }, this.CREATE_PURSUIT_DIALOG_OPTIONS).render(true);
+    }, {width: this.DIALOG_WIDTH}).render(true);
   }
 
   processAddObstacleDialog(html) {
@@ -628,7 +646,8 @@ class SimplePursuit {
         active: true,
         name: obstacle.name,
         perceived: obstacle.perceived,
-        navigate: obstacle.navigate,
+        navigatePerceived: obstacle.navigatePerceived,
+        navigateNotPerceived: obstacle.navigateNotPerceived,
         consequences: obstacle.consequences,
         move: 0,
         run: 0,
@@ -702,9 +721,15 @@ class SimplePursuit {
   normaliseDistance() {
     const characters = this.getCharacters()
     let minDistance = characters.reduce((a, b) => a.distance < b.distance ? a : b).distance
-    for (let i = 0; i < characters.length; i++) {
-      characters[i].distance -= minDistance
+    for (let object of this.getActive()) {
+      object.distance -= minDistance
+      if (object.type === "obstacle" && object.distance < 0) {
+        object.active = false
+      }
     }
+
+    // Remove inactive obstacles
+    this.objectsInPursuit = this.objectsInPursuit.filter(o => o.type !== "obstacle" || o.active)
   }
 }
 
