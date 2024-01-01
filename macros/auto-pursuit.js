@@ -11,83 +11,106 @@ const PRESET_OBSTACLES = {
     name: `Large Log`,
     perceived: `Automatically`,
     navigatePerceived: `Average (+20) Athletics Test`,
-    consequences: `Gain Prone Condition`
+    consequences: `Gain Prone.`,
+    stopping: true
   },
   haystack: {
     name: `Haystack`,
     perceived: `Automatically`,
     navigatePerceived: `Hard (-20) Climb Test`,
-    consequences: `Gain Entangled (S 2D10+20) Condition`
+    consequences: `Gain Entangled (S 2D10+20).`,
+    stopping: true
   },
   puddle: {
     name: `Filthy Puddle`,
     perceived: `Average (+20) Perception Test`,
     navigatePerceived: `Average (+20) Athletics Test`,
     navigateNotPerceived: `Hard (-20) Athletics Test`,
-    consequences: `-2 SL to all Fellowship Tests until they clean themselves`
+    consequences: `-2 SL to all Fellowship Tests until you clean yourself.`
   },
   crates: {
     name: `Crates of Merchandise`,
     perceived: `Automatically`,
     navigatePerceived: `Challenging (+0) Athletics Test`,
-    consequences: `Gain Prone Condition, 2d10 pieces of merchandise are broken`
+    consequences: `Gain Prone, 2D10 pieces of merchandise are broken.`,
+    stopping: true
   },
   gate: {
     name: `Closed Gate`,
     perceived: `Automatically`,
     navigatePerceived: `Hard (-20) Climb Test`,
-    consequences: `Cannot move; fall 2 yds on Impressive Failure (-6 SL)`
+    consequences: `Cannot move; fall 2 yds on Impressive Failure (-6 SL).`,
+    stopping: true
   },
   pothole: {
     name: `Pothole`,
     perceived: `Challenging (+0) Perception Test`,
     navigatePerceived: `Easy (+40) Athletics Test`,
     navigateNotPerceived: `Hard (-20) Athletics Test`,
-    consequences: `Gain Twisted Ankle Critical Injury`
+    consequences: `Gain Twisted Ankle Critical Injury.`
   },
   quicksand: {
     name: "Quicksand",
     perceived: `Challenging (+0) Perception Test`,
     navigatePerceived: `Easy (+40) Athletics Test`,
     navigateNotPerceived: `Hard (-20) Athletics Test`,
-    consequences: `Gain Entangled (S 2D10+20) Condition, each Round S increase by D10, after 6 Rounds pass Challenging (+0) Cool Test or start Drowning`
+    consequences: `Gain Entangled (S 2D10+20), each Round S increase by D10, after 6 Rounds pass Challenging (+0) Cool Test or start Drowning.`,
+    stopping: true
   },
   goat_herd: {
     name: "Passing Goat Herd",
     perceived: `Automatically`,
     navigatePerceived: `Hard (-20) Athletics Test`,
-    consequences: `Weapon (Horns) +6 hit`
+    consequences: `Weapon (Horns) +6 hit.`
   },
   fish_guts_bucket: {
     name: "Bucket full of Fish Guts",
     perceived: `Automatically`,
     navigatePerceived: `Easy (+40) Athletics Test`,
-    consequences: `Gain Prone Condition`
+    consequences: `Gain Prone.`,
+    stopping: true
   },
   fish_guts_slick: {
     name: "Slick of Fish Guts",
     perceived: `Automatically`,
     navigatePerceived: `Hard (-20) Athletics Test`,
-    consequences: `Gain Prone Condition, -2 SL to all Fellowship Tests until they clean themselves, test for Festering Wounds if they have untreated wounds`
+    consequences: `Gain Prone, -2 SL to all Fellowship Tests until they clean themselves, test for Festering Wounds if they have untreated wounds.`,
+    stopping: true
   },
   rotten_Floorboards: {
     name: "Rotten Floorboards",
     perceived: `Hard (-20) Perception Test`,
     navigatePerceived: `Average (+20) Athletics Test`,
     navigateNotPerceived: `Very Hard (-30) Athletics Test`,
-    consequences: `Fall from 3 yds`
+    consequences: `Fall from 3 yds.`
   },
   workman: {
     name: "Workman on Ladder",
     perceived: `Automatically`,
     navigatePerceived: `Easy (+40) Athletics Test`,
-    consequences: `Gain Prone Condition, workman must pass Hard (-20) Athletics Test or fall D10 yds`
+    consequences: `Gain Prone Condition, workman must pass Hard (-20) Athletics Test or fall D10 yds.`,
+    stopping: true
   },
   cart: {
     name: "Unattended Cart",
     perceived: `Automatically`,
     navigatePerceived: `Average (+20) Climb Test`,
-    consequences: `Lose Round`
+    consequences: `Lose Round`,
+    stopping: true
+  },
+  cart_cabbage: {
+    name: "Unattended Cart Full of Cabbages",
+    perceived: `Automatically`,
+    navigatePerceived: `Challenging (+0) Climb Test`,
+    consequences: `Average (+20) Initiative Test or gain Surprised. Replace with Unattended Cart and Scattered Mound of Cabbages obstacles.`,
+    stopping: true
+  },
+  mound_cabbage: {
+    name: "Scattered Mound of Cabbages",
+    perceived: `Automatically`,
+    navigatePerceived: `Hard (-20) Athletics Test`,
+    consequences: `Suffer fall from 1 yd and gain Prone.`,
+    stopping: true
   },
 }
 
@@ -145,17 +168,25 @@ class SimplePursuit {
       run: actor.system.details.move.run,
       type: "character",
       distance: 0,
-      testSL: 0,
+      testSL: this.getDefaultTestSL(),
       quarry: false
     }
   }
 
-  getCharacterMove(character) {
+  getCharacterMoveFormatted(character) {
     return `${character.move}`
   }
 
-  getDistanceFromSL(SL) {
-    return SL
+  getDefaultTestSL() {
+    return 0
+  }
+
+  getDistanceMoved(character) {
+    if (character.testSL !== undefined) {
+      return character.testSL
+    } else {
+      return 0
+    }
   }
 
   getObstacleNavigateTest(object) {
@@ -281,6 +312,10 @@ class SimplePursuit {
 
   getCharacters() {
     return this.objectsInPursuit.filter(o => o.type === "character" && o.active)
+  }
+
+  getObstacles() {
+    return this.objectsInPursuit.filter(o => o.type === "obstacle" && o.active)
   }
 
   getQuarry() {
@@ -442,7 +477,7 @@ class SimplePursuit {
             ${!!object.actor ? "<i class='fas fa-user'></i> " : ""}${object.name}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
-            ${this.getCharacterMove(object)}
+            ${this.getCharacterMoveFormatted(object)}
           </span>
           <span style="flex: 1;${this.MAIN_STYLE}">
             <input name="SL" type="number" value="${object.testSL}" step="1">
@@ -459,7 +494,7 @@ class SimplePursuit {
         </div>
         <p style="flex: 6;${this.MAIN_STYLE}" 
         title="Perceived: ${object.perceived}&#10;Test: ${this.getObstacleNavigateTest(object)}&#10;Consequences: ${object.consequences}">
-          ${object.name}
+          <i class='fas fa-road-barrier'></i> ${object.name}
         </p>
         <input name="SL" type="hidden" value="${object.testSL}" step="1">
         <span style="flex: 1;${this.MAIN_STYLE}">
@@ -643,12 +678,8 @@ class SimplePursuit {
     if (form.preset) {
       const obstacle = PRESET_OBSTACLES[form.preset]
       this.objectsInPursuit.push({
+        ...obstacle,
         active: true,
-        name: obstacle.name,
-        perceived: obstacle.perceived,
-        navigatePerceived: obstacle.navigatePerceived,
-        navigateNotPerceived: obstacle.navigateNotPerceived,
-        consequences: obstacle.consequences,
         move: 0,
         run: 0,
         type: "obstacle",
@@ -687,16 +718,17 @@ class SimplePursuit {
   async calculateDistanceMoved() {
     let characters = this.getCharacters()
     for (let character of characters) {
-      character.distanceMoved = this.getDistanceFromSL(character.testSL)
+      character.distanceMoved = this.getDistanceMoved(character)
       character.distance += character.distanceMoved
-      character.testSL = 0
+      character.testSL = this.getDefaultTestSL()
     }
 
+    // Catching Quarry
     let maxQuarryDistance = this.getQuarry().reduce((a, b) => a.distance > b.distance ? a : b).distance
     for (let pursuer of this.getPursuers()) {
       for (let quarry of this.getQuarry()) {
         if (pursuer.distance > quarry.distance && (pursuer.distance - pursuer.distanceMoved) <= (quarry.distance - quarry.distanceMoved)) {
-          if (maxQuarryDistance === quarry.distance || await PursuitDialogHelper.createPursuitDialog({
+          if (maxQuarryDistance === quarry.distance || await PursuitDialogHelper.createPursuitDialogFormatted({
             title: `${pursuer.name} can caught ${quarry.name}`,
             content: `Do you want to charge into combat, or run past and pursue another quarry?`,
             buttons: {
@@ -712,6 +744,59 @@ class SimplePursuit {
             defaultButton: "yes"
           })) {
             pursuer.distance = quarry.distance
+          }
+        }
+      }
+    }
+
+    // Encountering Obstacles
+    for (let obstacle of this.getObstacles().reverse()) {
+      for (let character of this.getCharacters().reverse()) {
+        if (character.distance > obstacle.distance && character.distance - character.distanceMoved <= obstacle.distance) {
+          const content = obstacle.perceived === "Automatically" ? `
+            <h3 style="${this.MAIN_STYLE}">Navigate Test</h3>
+            <div class="delete-item-dialog selection">
+              <label>${obstacle.navigatePerceived}</label>
+            </div>
+            <h3 style="${this.MAIN_STYLE}">Consequences</h3>
+            <div class="delete-item-dialog selection">
+              <label>${obstacle.consequences}</label>
+            </div>
+          ` : `
+            <h3 style="${this.MAIN_STYLE}">Perceive Test</h3>
+            <div class="delete-item-dialog selection">
+              <label>${obstacle.perceived}</label>
+            </div>
+            <h3 style="${this.MAIN_STYLE}">Navigate Test</h3>
+            <div class="delete-item-dialog selection">
+              <label>${obstacle.navigatePerceived}/${obstacle.navigateNotPerceived}</label>
+            </div>
+            <h3 style="${this.MAIN_STYLE}">Consequences</h3>
+            <div class="delete-item-dialog selection">
+              <label>${obstacle.consequences}</label>
+            </div>
+          `
+          const result = await PursuitDialogHelper.createPursuitDialog({
+            title: `${character.name} encounters ${obstacle.name}`,
+            content: content,
+            buttons: {
+              tackle: {
+                label: "Tackle Obstacle",
+                callback: () => 0
+              },
+              fail: {
+                label: "Suffer Consequences",
+                callback: () => 1
+              },
+              stop: {
+                label: "Stop before Obstacle",
+                callback: () => 2
+              }
+            },
+            defaultButton: "tackle"
+          }, {width: this.DIALOG_WIDTH + 50})
+          if ((result === 1 && obstacle.stopping === true) || result === 2) {
+            character.distance = obstacle.distance
           }
         }
       }
@@ -752,20 +837,37 @@ class ComplexPursuit extends SimplePursuit {
       <h4><b>Fleeing: </b>Free Pursuit Test, +2 SL if opponent attacks.</h4>`
     this.nextTurnFooter = `
       <h2 style="${this.MAIN_STYLE}"><b>Distance Update Rules</b></h2>
-      <h4 style="text-align: center"><b>Roll Pursuit Test:</b></h4>
-      <h4><b>4 SL or more: </b>Distance Moved = (Run / 10) + 1</h4>
-      <h4><b>0 to 3 SL: </b>Distance Moved = (Run / 10)</h4>
-      <h4><b>-2 to -1 SL: </b>Distance Moved = (Run / 10) - 1</h4>
-      <h4><b>-3 to -4 SL: </b>Distance Moved = 0</h4>
-      <h4><b>-5 SL or less: </b>Gains Prone Condition</h4>`
+      <div style="text-align: center">
+        <h4><b>Roll Pursuit Test:</b></h4>
+        <h4><b>4 SL or more: </b>Distance Moved = (Run / 10) + 1</h4>
+        <h4><b>0 to 3 SL: </b>Distance Moved = (Run / 10)</h4>
+        <h4><b>-2 to -1 SL: </b>Distance Moved = (Run / 10) - 1</h4>
+        <h4><b>-3 to -4 SL: </b>Distance Moved = 0</h4>
+        <h4><b>-5 SL or less: </b>Gain Prone Condition</h4>
+      </div>`
   }
 
   //-------------//
 
-  getCharacterMove(character) {
+  getCharacterMoveFormatted(character) {
     return `${character.move} (${character.run})`
   }
 
+  getDistanceMoved(character) {
+    if (character.testSL >= 4) {
+      return Math.max(Math.floor(character.run / 10), 1) + 1
+    } else if (character.testSL >= 0) {
+      return Math.max(Math.floor(character.run / 10), 1)
+    } else if (character.testSL >= -2) {
+      return Math.max(Math.floor(character.run / 10), 1) - 1
+    } else {
+      return 0
+    }
+  }
+
+  getDefaultTestSL() {
+    return -4
+  }
   //-------------//
 
   getChatPursuitTests() {
@@ -804,10 +906,24 @@ class PursuitDialogHelper extends Dialog {
                                      title,
                                      content,
                                      buttons,
-                                     defaultButton,
-                                     options = {}
-                                   }) {
+                                     defaultButton
+                                   }, options = {}) {
     return this.wait({
+      title,
+      content: content,
+      focus: true,
+      default: defaultButton,
+      buttons: buttons,
+    }, options);
+  }
+
+  static async createPursuitDialogFormatted({
+                                              title,
+                                              content,
+                                              buttons,
+                                              defaultButton
+                                            }, options = {}) {
+    return this.createPursuitDialog({
       title,
       content: `
         <div class="delete-item-dialog selection">
@@ -821,7 +937,7 @@ class PursuitDialogHelper extends Dialog {
 }
 
 // Main code
-PursuitDialogHelper.createPursuitDialog({
+PursuitDialogHelper.createPursuitDialogFormatted({
   title: "Choose Pursuit Mode",
   content: "Choose in which mode you want to run this tool.",
   buttons: {
